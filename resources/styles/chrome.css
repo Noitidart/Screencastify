@@ -1,0 +1,5 @@
+@-moz-document url("chrome://browser/content/browser.xul") {
+	#cui_screencastify .toolbarbutton-badge {
+		background-color: red;
+	}
+}

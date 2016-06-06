@@ -1,0 +1,9 @@
+@-moz-document url("chrome://browser/content/browser.xul") {
+	#cui_screencastify {
+		list-style-image: url('chrome://screencastify/content/resources/images/icon-color16.png');
+	}
+	#cui_screencastify[cui-areatype="menu-panel"],
+	toolbarpaletteitem[place="palette"] > #cui_screencastify {
+		list-style-image: url('chrome://screencastify/content/resources/images/icon-color32.png');
+	}
+}
