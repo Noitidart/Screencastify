@@ -60,9 +60,9 @@ function startup(aData, aReason) {
 
 		core = aArg;
 
-		// gFsComm = new crossprocComm(core.addon.id);
+		gFsComm = new crossprocComm(core.addon.id);
 
-		// Services.mm.loadFrameScript(core.addon.path.scripts + 'MainFramescript.js?' + core.addon.cache_key, true);
+		Services.mm.loadFrameScript(core.addon.path.scripts + 'MainFramescript.js?' + core.addon.cache_key, true);
 
 		// initInstallListener();
 
@@ -93,9 +93,11 @@ function shutdown(aData, aReason) {
 
 	if (aReason == APP_SHUTDOWN) { return }
 
-	// Services.mm.removeDelayedFrameScript(core.addon.path.scripts + 'MainFramescript.js?' + core.addon.cache_key);
+	CustomizableUI.destroyWidget('cui_screencastify');
 
-	// crossprocComm_unregAll();
+	Services.mm.removeDelayedFrameScript(core.addon.path.scripts + 'MainFramescript.js?' + core.addon.cache_key);
+
+	crossprocComm_unregAll();
 
 	// workerComm_unregAll();
 }
@@ -170,9 +172,147 @@ var windowListener = {
 
 function cuiClick(e) {
 	console.log('clicked');
+	new FHR();
+}
+
+var gFHR = []; // holds all currently alive FHR instances. keeps track of FHR's so it destroys them on shutdown. if devuser did not handle destroying it
+var gFHR_id = 0;
+function FHR() {
+	// my FrameHttpRequest module which loads pages into frames, and navigates by clicks
+	// my play on XHR
+
+	// must instatiate with loadPageArgs
+
+	gFHR_id++;
+
+	var fhrThis = this;
+	this.id = gFHR_id;
+	gFHR.push(this);
+
+	var fhrFsMsgListenerId = core.addon.id + '-fhr_' + gFHR_id;
+
+	// start - rev3 - https://gist.github.com/Noitidart/03c84a4fc1e566bd0fe5
+	// var fhrFsFuncs = { // can use whatever, but by default its setup to use this
+	// 	FHRFrameScriptReady: function() {
+	// 		console.log('mainthread', 'FHRFrameScriptReady');
+	// 		fhrThis.inited = true;
+	// 		if (fhrPostInitCb) {
+	// 			fhrPostInitCb();
+	// 		}
+	// 	}
+	// };
+	// var fhrFsMsgListener = {
+	// 	funcScope: fhrFsFuncs,
+	// 	receiveMessage: function(aMsgEvent) {
+	// 		var aMsgEventData = aMsgEvent.data;
+	// 		console.log('fhrFsMsgListener getting aMsgEventData:', aMsgEventData, 'aMsgEvent:', aMsgEvent);
+	// 		// aMsgEvent.data should be an array, with first item being the unfction name in bootstrapCallbacks
+	//
+	// 		var callbackPendingId;
+	// 		if (typeof aMsgEventData[aMsgEventData.length-1] == 'string' && aMsgEventData[aMsgEventData.length-1].indexOf(SAM_CB_PREFIX) == 0) {
+	// 			callbackPendingId = aMsgEventData.pop();
+	// 		}
+	//
+	// 		aMsgEventData.push(aMsgEvent); // this is special for server side, so the function can do aMsgEvent.target.messageManager to send a response
+	//
+	// 		var funcName = aMsgEventData.shift();
+	// 		if (funcName in this.funcScope) {
+	// 			var rez_parentscript_call = this.funcScope[funcName].apply(null, aMsgEventData);
+	//
+	// 			if (callbackPendingId) {
+	// 				// rez_parentscript_call must be an array or promise that resolves with an array
+	// 				if (rez_parentscript_call.constructor.name == 'Promise') {
+	// 					rez_parentscript_call.then(
+	// 						function(aVal) {
+	// 							// aVal must be an array
+	// 							aMsgEvent.target.messageManager.sendAsyncMessage(fhrFsMsgListenerId, [callbackPendingId, aVal]);
+	// 						},
+	// 						function(aReason) {
+	// 							console.error('aReject:', aReason);
+	// 							aMsgEvent.target.messageManager.sendAsyncMessage(fhrFsMsgListenerId, [callbackPendingId, ['promise_rejected', aReason]]);
+	// 						}
+	// 					).catch(
+	// 						function(aCatch) {
+	// 							console.error('aCatch:', aCatch);
+	// 							aMsgEvent.target.messageManager.sendAsyncMessage(fhrFsMsgListenerId, [callbackPendingId, ['promise_rejected', aCatch]]);
+	// 						}
+	// 					);
+	// 				} else {
+	// 					// assume array
+	// 					aMsgEvent.target.messageManager.sendAsyncMessage(fhrFsMsgListenerId, [callbackPendingId, rez_parentscript_call]);
+	// 				}
+	// 			}
+	// 		}
+	// 		else { console.warn('funcName', funcName, 'not in scope of this.funcScope') } // else is intentionally on same line with console. so on finde replace all console. lines on release it will take this out
+	//
+	// 	}
+	// };
+
+	// Services.mm.addMessageListener(fhrFsMsgListenerId, fhrFsMsgListener);
+
+	// no need to redefine - sendAsyncMessageWithCallback, i can use the globally defined sendAsyncMessageWithCallback fine with this
+	// end - rev3 - https://gist.github.com/Noitidart/03c84a4fc1e566bd0fe5
+
+
+	var aWindow = Services.wm.getMostRecentWindow('navigator:browser');
+	var aDocument = aWindow.document;
+	var fhrPostInitCb;
+
+	var doAfterAppShellDomWinReady = function() {
+
+			this.frame = aDocument.createElementNS('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul', 'browser');
+
+			// this.frame.setAttribute('class', core.addon.id + '_fhr-');
+			// if (OS.Constants.Sys.Name.toLowerCase() != 'darwin') {
+				this.frame.setAttribute('remote', 'true');
+			// }
+			this.frame.setAttribute('type', 'content');
+			this.frame.setAttribute('style', 'height:100px;border:2px solid steelblue;');
+			// this.frame.setAttribute('style', 'height:0;border:0;');
+
+			aDocument.documentElement.appendChild(this.frame);
+			// this.frame.messageManager.loadFrameScript(core.addon.path.scripts + 'FHRFrameScript.js?fhrFsMsgListenerId=' + fhrFsMsgListenerId + '&v=' + core.addon.cache_key, false);
+			this.frame.setAttribute('src', core.addon.path.pages + 'hidden.html');
+
+			this.destroy = function() {
+
+				this.frame.messageManager.sendAsyncMessage(fhrFsMsgListenerId, ['destroySelf']); // not really needed as i remove the element
+
+				// Services.mm.removeMessageListener(fhrFsMsgListenerId, fhrFsMsgListener);
+				aDocument.documentElement.removeChild(this.frame);
+
+				// delete this.frame; // release reference to it
+				// delete this.loadPage;
+				// delete this.destroy;
+
+				for (var i=0; i<gFHR.length; i++) {
+					if (gFHR[i].id == this.id) {
+						gFHR.splice(i, 1);
+						break;
+					}
+				}
+
+				// this.destroyed = true;
+				console.log('ok destroyed FHR instance with id:', this.id);
+			}.bind(this);
+
+	}.bind(this);
+
+	if (aDocument.readyState == 'complete') {
+		doAfterAppShellDomWinReady();
+	} else {
+		aWindow.addEventListener('load', function() {
+			aWindow.removeEventListener('load', arguments.callee, false);
+			doAfterAppShellDomWinReady();
+		}, false);
+	}
+
 }
 
 // start - functions called by framescript
+function fetchCore(aArg, aComm) {
+	return core;
+}
 function callInWorker(aArg, aMessageManager, aBrowser, aComm) {
 	// called by framescript
 	var {method, arg, wait} = aArg;

@@ -24,7 +24,7 @@ function initAndRegisterAboutScreencastify() {
 		},
 
 		newChannel: function(aURI, aSecurity_or_aLoadInfo) {
-			var redirUrl = core.addon.path.pages + 'cp.xhtml';
+			var redirUrl = core.addon.path.pages + 'hidden.html';
 
 			var channel;
 			if (Services.vc.compare(core.firefox.version, '47.*') > 0) {
@@ -70,7 +70,7 @@ var pageLoader = {
 	IGNORE_NONMATCH: true,
 	matches: function(aHREF, aLocation) {
 		// do your tests on aHREF, which is aLocation.href.toLowerCase(), return true if it matches
-		return (aLocation.hostname == 'about:screencastify');
+		return (aLocation.href.toLowerCase().startsWith('about:screencastify'));
 	},
 	ready: function(aContentWindow) {
 		// triggered on page ready
@@ -80,7 +80,11 @@ var pageLoader = {
 		var contentWindow = aContentWindow;
 		console.log('ready enter');
 
-		gWinComm = new contentComm(contentWindow); // cross-file-link884757009
+		var webNav = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
+		console.log('webNav:', webNav);
+		console.log('webNav.setCurrentURI,', webNav.setCurrentURI);
+
+		// gWinComm = new contentComm(contentWindow); // cross-file-link884757009
 
 		console.log('ready done');
 	},
@@ -91,7 +95,6 @@ var pageLoader = {
 	},
 	readyNonmatch: function(aContentWindow) {
 		gWinComm = null;
-		if (gSandbox) { Cu.nukeSandbox(gSandbox); gSandbox=null; }
 	},
 	loadNonmatch: function(aContentWindow) {},
 	errorNonmatch: function(aContentWindow, aDocURI) {},
@@ -189,7 +192,7 @@ function init() {
 		core = aCore;
 		console.log('ok updated core to:', core);
 
-		addEventListener('unload', uninit, false);
+		// addEventListener('unload', uninit, false);
 
 		pageLoader.register(); // pageLoader boilerpate
 
