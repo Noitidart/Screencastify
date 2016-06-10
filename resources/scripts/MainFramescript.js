@@ -20,7 +20,7 @@ function initAndRegisterAboutScreencastify() {
 		QueryInterface: XPCOMUtils.generateQI([Ci.nsIAboutModule]),
 
 		getURIFlags: function(aURI) {
-			return Ci.nsIAboutModule.ALLOW_SCRIPT | Ci.nsIAboutModule.URI_MUST_LOAD_IN_CHILD;
+			return Ci.nsIAboutModule.URI_SAFE_FOR_UNTRUSTED_CONTENT | Ci.nsIAboutModule.URI_MUST_LOAD_IN_CHILD;
 		},
 
 		newChannel: function(aURI, aSecurity_or_aLoadInfo) {
@@ -80,21 +80,23 @@ var pageLoader = {
 		var contentWindow = aContentWindow;
 		console.log('ready enter');
 
-		var webNav = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
-		console.log('webNav:', webNav);
-		console.log('webNav.setCurrentURI,', webNav.setCurrentURI);
+		// var webNav = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
+		// console.log('webNav:', webNav);
+		// console.log('webNav.setCurrentURI,', webNav.setCurrentURI);
+		// webNav.setCurrentURI(Services.io.newURI('https://mozilla.github.io/', null, null));
 
 		// gWinComm = new contentComm(contentWindow); // cross-file-link884757009
-		var principal = contentWindow.document.nodePrincipal; // contentWindow.location.origin (this is undefined for about: pages) // docShell.chromeEventHandler.contentPrincipal (chromeEventHandler no longer has contentPrincipal)
-		console.log('contentWindow.document.nodePrincipal', contentWindow.document.nodePrincipal);
-		console.error('principal:', principal);
-		gSandbox = Cu.Sandbox(principal, {
-			sandboxPrototype: contentWindow,
-			wantXrays: true, // only set this to false if you need direct access to the page's javascript. true provides a safer, isolated context.
-			sameZoneAs: contentWindow,
-			wantComponents: false
-		});
-		Services.scriptloader.loadSubScript(core.addon.path.scripts + 'hidden_contentscript.js?' + core.addon.cache_key, gSandbox, 'UTF-8');
+
+		// var principal = contentWindow.document.nodePrincipal; // contentWindow.location.origin (this is undefined for about: pages) // docShell.chromeEventHandler.contentPrincipal (chromeEventHandler no longer has contentPrincipal)
+		// console.log('contentWindow.document.nodePrincipal', contentWindow.document.nodePrincipal);
+		// console.error('principal:', principal);
+		// gSandbox = Cu.Sandbox(principal, {
+		// 	sandboxPrototype: contentWindow,
+		// 	wantXrays: true, // only set this to false if you need direct access to the page's javascript. true provides a safer, isolated context.
+		// 	sameZoneAs: contentWindow,
+		// 	wantComponents: false
+		// });
+		// Services.scriptloader.loadSubScript(core.addon.path.scripts + 'hidden_contentscript.js?' + core.addon.cache_key, gSandbox, 'UTF-8');
 
 		console.log('ready done');
 	},
