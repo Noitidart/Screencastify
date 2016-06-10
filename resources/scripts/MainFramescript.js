@@ -20,7 +20,7 @@ function initAndRegisterAboutScreencastify() {
 		QueryInterface: XPCOMUtils.generateQI([Ci.nsIAboutModule]),
 
 		getURIFlags: function(aURI) {
-			return Ci.nsIAboutModule.URI_SAFE_FOR_UNTRUSTED_CONTENT | Ci.nsIAboutModule.URI_MUST_LOAD_IN_CHILD;
+			return Ci.nsIAboutModule.URI_SAFE_FOR_UNTRUSTED_CONTENT | Ci.nsIAboutModule.ALLOW_SCRIPT | Ci.nsIAboutModule.URI_MUST_LOAD_IN_CHILD;
 		},
 
 		newChannel: function(aURI, aSecurity_or_aLoadInfo) {
@@ -28,7 +28,7 @@ function initAndRegisterAboutScreencastify() {
 
 			var channel;
 			if (Services.vc.compare(core.firefox.version, '47.*') > 0) {
-				var redirURI = Services.io.newURI(redirUrl, null, null);
+				var redirURI = Services.io.newURI(redirUrl, 'UTF-8', Services.io.newURI('about:screencastify', null, null));
 				channel = Services.io.newChannelFromURIWithLoadInfo(redirURI, aSecurity_or_aLoadInfo);
 			} else {
 				console.log('doing old way');

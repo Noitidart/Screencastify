@@ -6,7 +6,9 @@
             var Stream;
             alert('hi orig');
             var param = {
-            	video: true
+            	video: {
+                    mediaSource: 'screen'
+                }
             };
             navigator.mediaDevices.getUserMedia(param).then(function(stream) {
             	console.log('success');
