@@ -35,7 +35,31 @@ function bootstrapTimeout(milliseconds) {
 	return mainDeferred_bootstrapTimeout.promise;
 }
 
+var gDataStore = {}; // key is recording id
+var gDataStoreNextId = 0;
+function createStore() {
+	var id = gDataStoreNextId++;
+	gDataStore[id] = {};
+	return id;
+}
+function getStore(id) {
+	// returns the btn store from gBtnStore, if it doesnt exist, it creates one
+	return gDataStore[id];
+}
 
+// start - functions called by bootstrap
+function globalRecordNew(aArg, aComm) {
+	var id = createStore();
+	gBsComm.postMessage('globalRecordStart', { id });
+}
+function globalRecordComplete(aArg, aComm) {
+	var { id, arrbuf } = aArg;
+	var store = getStore(id);
+
+	store.arrbuf = arrbuf;
+	gBsComm.postMessage('manageSingle')
+}
+// end - functions called by bootstrap
 
 // End - Addon Functionality
 

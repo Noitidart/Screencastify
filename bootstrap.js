@@ -69,7 +69,6 @@ function startup(aData, aReason) {
 		// determine gCuiCssFilename for windowListener.register
 		gCuiCssUri = Services.io.newURI(core.addon.path.styles + 'cui.css', null, null);
 		gGenCssUri = Services.io.newURI(core.addon.path.styles + 'chrome.css', null, null);
-		console.log('gGenCssUri:', gGenCssUri);
 
 		// window listener
 		windowListener.register();
@@ -95,11 +94,13 @@ function shutdown(aData, aReason) {
 
 	CustomizableUI.destroyWidget('cui_screencastify');
 
+	windowListener.unregister();
+
 	Services.mm.removeDelayedFrameScript(core.addon.path.scripts + 'MainFramescript.js?' + core.addon.cache_key);
 
 	crossprocComm_unregAll();
 
-	// workerComm_unregAll();
+	workerComm_unregAll();
 }
 
 var windowListener = {
@@ -169,10 +170,16 @@ var windowListener = {
 	}
 };
 
+// functions
+
+var gRecord;
 
 function cuiClick(e) {
-	console.log('clicked');
-	new FHR();
+	if (gRecord) {
+		globalRecordStop();
+	} else {
+		gWkComm.postMessage('globalRecordNew');
+	}
 }
 
 var gFHR = []; // holds all currently alive FHR instances. keeps track of FHR's so it destroys them on shutdown. if devuser did not handle destroying it
@@ -309,6 +316,10 @@ function FHR() {
 
 }
 
+// start - functions called by bootstrap - that talk to worker
+
+// end - functions called by bootstrap - that talk to worker
+
 // start - functions called by framescript
 function fetchCore(aArg, aComm) {
 	return core;
@@ -335,7 +346,41 @@ function callInWorker(aArg, aMessageManager, aBrowser, aComm) {
 // end - functions called by framescript
 
 // start - functions called by worker
+function globalRecordStop() {
+	if (gRecord) {
+		gRecord.recorder.stop();
+	}
+}
+function globalRecordStart(id) {
+	var w = Services.appShell.hiddenDOMWindow;
+	w.navigator.mediaDevices.getUserMedia({
+		video: {
+			mediaSource: 'screen'
+		}
+	}).then(function(stream) {
+		// do something with the stream
+		var gRecord = {
+			id,
+			recorder: new w.MediaRecorder(stream)
+		};
 
+		gRecord.recorder.addEventListener('dataavailable', function(e) {
+			// console.log('data avail, e:')
+			gRecord = null;
+			var fileReader = new w.FileReader();
+			fileReader.onload = function() {
+				var arrbuf = this.result;
+				gWkComm.postMessage('globalRecordComplete', { id, arrbuf }, [arrbuf]);
+			};
+			fileReader.readAsArrayBuffer(e.data);
+		}, false);
+
+
+		gRecord.recorder.start();
+	}, function(aReason) {
+		console.error('failed, aReason:', aReason);
+	});
+}
 // end - functions called by worker
 
 //start - common helper functions
