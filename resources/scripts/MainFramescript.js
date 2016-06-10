@@ -24,7 +24,7 @@ function initAndRegisterAboutScreencastify() {
 		},
 
 		newChannel: function(aURI, aSecurity_or_aLoadInfo) {
-			var redirUrl = core.addon.path.pages + 'hidden.html';
+			var redirUrl = core.addon.path.pages + 'app.xhtml';
 
 			var channel;
 			if (Services.vc.compare(core.firefox.version, '47.*') > 0) {
@@ -70,7 +70,7 @@ var pageLoader = {
 	IGNORE_NONMATCH: true,
 	matches: function(aHREF, aLocation) {
 		// do your tests on aHREF, which is aLocation.href.toLowerCase(), return true if it matches
-		return (aLocation.href.toLowerCase().startsWith('about:screencastify'));
+		return (aLocation.href.toLowerCase().startsWith('about:screencastify') || aLocation.href.toLowerCase().startsWith('chrome://screencastify/content/resources/pages/app.xhtml'));
 	},
 	ready: function(aContentWindow) {
 		// triggered on page ready
@@ -85,7 +85,7 @@ var pageLoader = {
 		// console.log('webNav.setCurrentURI,', webNav.setCurrentURI);
 		// webNav.setCurrentURI(Services.io.newURI('https://mozilla.github.io/', null, null));
 
-		// gWinComm = new contentComm(contentWindow); // cross-file-link884757009
+		gWinComm = new contentComm(contentWindow); // cross-file-link884757009
 
 		// var principal = contentWindow.document.nodePrincipal; // contentWindow.location.origin (this is undefined for about: pages) // docShell.chromeEventHandler.contentPrincipal (chromeEventHandler no longer has contentPrincipal)
 		// console.log('contentWindow.document.nodePrincipal', contentWindow.document.nodePrincipal);

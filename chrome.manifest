@@ -1,2 +1,2 @@
-content screencastify ./
+content screencastify ./ contentaccessible=yes
 locale screencastify en-US locale/en-US/
