@@ -2,23 +2,34 @@ var core;
 var gFsComm;
 const BASE_PATH = ''
 
+function getPage() {
+	var href = location.href;
+
+
+	var match = href.match(/about\:(\w+)\??(\w+)?.?(.+)?/);
+	console.log('match:', match);
+	var app = match[1];
+	var name = match[2] || 'index';
+	name = name[0].toUpperCase() + name.substr(1).toLowerCase();
+	var param = match[3]; // if page is index, there is no param, so this will be undefined
+	return {
+		name,
+		param
+	};
+}
+
 function init() {
 	gFsComm.postMessage('callInBootstrap', {method:'fetchCore',wait:true}, null, function(aCore) {
 		console.log('core:', aCore);
 		core = aCore;
 
 		console.log('ok rendering react');
-		// Render the Provider component with the the Store
-		// in the props at the root of the hierarhy.
+
+		var page = getPage();
+
 		ReactDOM.render(
 			React.createElement(ReactRedux.Provider, { store },
-				React.createElement(ReactRouter.Router, { history },
-					React.createElement(ReactRouter.Route, { path:'/', component:App },
-						React.createElement(ReactRouter.Route, { path:'recording', component:RecordingPage }),
-						React.createElement(ReactRouter.Route, { path:'*', component:InvalidPage }),
-						React.createElement(ReactRouter.IndexRoute, { component:IndexPage })
-					)
-				)
+				React.createElement(App, {page})
 			),
 			document.getElementById('root')
 		);
@@ -64,25 +75,19 @@ function alert(state='', action) {
 	}
 }
 
-
 const app = Redux.combineReducers({
-	alert,
-	routing: ReactRouterRedux.routerReducer
+	alert
 });
 
 // STORE
-// var routingMiddleware = ReactRouterRedux.routerMiddleware(ReactRouter.browserHistory);
-
 var store = Redux.createStore(app);
-const history = ReactRouterRedux.syncHistoryWithStore(ReactRouter.hashHistory, store);
 
 var unsubscribe = store.subscribe(() => console.log(store.getState()) );
-history.listen(location => console.log('pathname:', location.pathname));
 
 // REACT COMPONENTS - PRESENTATIONAL
 var App = React.createClass({
 	render() {
-		var { children } = this.props;
+		var { page } = this.props;
 		console.log('this.props:', this.props);
 
 		var cProps = {
@@ -90,12 +95,12 @@ var App = React.createClass({
 			className: 'page'
 		};
 
+		console.log(page.name + 'Page')
+		var rElPage = gContent[page.name + 'Page'] || InvalidPage;
+
 		return React.createElement('div', cProps,
 			'App',
-			React.createElement(ReactRouter.Link, { to:'/recording' },
-				'Recording'
-			),
-			children
+			React.createElement(rElPage, { page })
 		);
 	}
 });
@@ -119,7 +124,7 @@ var IndexPage = React.createClass({
 var InvalidPage = React.createClass({
 	render() {
 		return React.createElement('div', null,
-			'INVALID'
+			'INVALID PAGE'
 		);
 	}
 });
