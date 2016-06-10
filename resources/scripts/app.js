@@ -1,6 +1,6 @@
 var core;
 var gFsComm;
-
+const BASE_PATH = ''
 
 function init() {
 	gFsComm.postMessage('callInBootstrap', {method:'fetchCore',wait:true}, null, function(aCore) {
@@ -71,18 +71,19 @@ const app = Redux.combineReducers({
 });
 
 // STORE
-var routingMiddleware = ReactRouterRedux.routerMiddleware(ReactRouter.browserHistory);
+// var routingMiddleware = ReactRouterRedux.routerMiddleware(ReactRouter.browserHistory);
 
-var store = Redux.applyMiddleware(routingMiddleware)(Redux.createStore)(app);
-const history = ReactRouterRedux.syncHistoryWithStore(ReactRouter.browserHistory, store);
+var store = Redux.createStore(app);
+const history = ReactRouterRedux.syncHistoryWithStore(ReactRouter.hashHistory, store);
 
 var unsubscribe = store.subscribe(() => console.log(store.getState()) );
+history.listen(location => console.log('pathname:', location.pathname));
 
 // REACT COMPONENTS - PRESENTATIONAL
 var App = React.createClass({
 	render() {
 		var { children } = this.props;
-		console.log('children:', children);
+		console.log('this.props:', this.props);
 
 		var cProps = {
 			id: 'page',
