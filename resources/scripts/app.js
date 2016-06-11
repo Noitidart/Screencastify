@@ -146,7 +146,7 @@ var RecordingPage = React.createClass({
 					React.createElement(BootstrapButtonGroup, { items:captureOtherVideoItems }),
 					React.createElement('div', undefined,
 						React.createElement('div', { className:'input-group input-group-lg' },
-							React.createElement('span', { className:'input-group-addon' },
+							React.createElement('label', { className:'input-group-addon', htmlFor:'fps' },
 								formatStringFromNameCore('newrecording_fps', 'app')
 							),
 							React.createElement('input', { id:'fps', type:'text', maxLength:2, className:'form-control', placeholder:'10' })
@@ -168,13 +168,10 @@ const BootstrapButton = ({ color='default', glyph, name, disabled, active, unsup
 	// active,disabled,unsupported is optional, can be undefined, else bool
 	// color, glyph, name are str
 	// name is also optional, can be undefined
-	React.createElement('button', { type:'button', className:'btn btn-'+color+' btn-lg' },
+	React.createElement('button', { type:'button', className:'btn btn-'+color+' btn-lg', title:(unsupported ? formatStringFromNameCore('newrecording_unsupported_tooltip', 'app') : undefined), disabled:((unsupported || disabled) ? true : undefined) },
 		!glyph ? undefined : React.createElement('span', { className:'glyphicon glyphicon-'+glyph, 'aria-hidden':'true' }),
 		(glyph && name) ? ' ' : undefined,
-		name, // can be undefined
-		!unsupported ? undefined : React.createElement('small', undefined,
-			formatStringFromNameCore('unsupported', 'app')
-		)
+		name // can be undefined
 	)
 );
 
