@@ -391,7 +391,7 @@ var InputNumber = React.createClass({
 		if (isNaN(value)) {
 			console.error('value is isNaN', value);
 			return false;
-		} else if (value == '') {
+		} else if (value === '') {
 			console.error('value is blank', value);
 			return false;
 		} else if ('min' in this.progProps && this.progProps.min !== undefined && value < this.progProps.min) {
@@ -442,13 +442,6 @@ var InputNumber = React.createClass({
 			// update dom error class
 			this.setValid();
 		} else {
-			// if (!this.testValid(this.value)) {
-			// 	console.log('wheel calculated invalid value, but dom value (' + this.value + ') is also invald, so set the dom value, newValue:', newValue);
-			// 	this.value = newValue;
-			// 	this.refs.input.value = newValue;
-			// } else {
-			//	console.log('wheel calculated invalid value, and dom value (' + this.value + ') is valid, so dont do anything, newValue:', newValue);
-			// }
 			console.log('wheel calculated invalid value, so dont do anything, value:', newValue);
 		}
 
@@ -460,12 +453,10 @@ var InputNumber = React.createClass({
 
 		switch (e.key) {
 			case 'ArrowUp':
-					newValue = this.value + this.crement;
-					this.testThenDispatch(newValue);
+					newValue = this.value + this.progProps.crement;
 				break;
 			case 'ArrowDown':
-					newValue = this.value - this.crement;
-					this.testThenDispatch(newValue);
+					newValue = this.value - this.progProps.crement;
 				break;
 			default:
 				// if its not a number then block it
@@ -475,7 +466,21 @@ var InputNumber = React.createClass({
 						e.preventDefault();
 					}
 				}
+				return;
 		}
+
+		if (this.testValid(newValue)) {
+			// update dom
+			this.value = newValue;
+			this.refs.input.value = this.value;
+			// update state
+			this.progProps.dispatcher(this.value);
+			// update dom error class
+			this.setValid();
+		} else {
+			console.log('wheel calculated invalid value, so dont do anything, value:', newValue);
+		}
+
 	}
 });
 
