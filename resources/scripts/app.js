@@ -236,7 +236,7 @@ var NewRecordingPage = React.createClass({
 						React.createElement('label', { className:'input-group-addon', htmlFor:'fps' },
 							formatStringFromNameCore('newrecording_fps', 'app')
 						),
-						React.createElement(InputNumber, { id:'fps', className:'form-control', placeholder:10, defaultValue:fps, min:1, max:60, dispatcher:setFps })
+						React.createElement(InputNumber, { id:'fps', className:'form-control', defaultValue:fps, min:1, max:60, dispatcher:setFps })
 					)
 				)
 			)
@@ -326,10 +326,16 @@ var InputNumber = React.createClass({
 		this.valid = true; // needed otherwise, if this.setValid finds this.value to be valid, it will try to remove from classList, its an unnecessary dom action
 		this.setValid(); // this will set this.valid for me
 		console.log('ok mounted');
+
+		// set up parent node mouse drag stuff
+		this.refs.input.parentNode.classList.add('inputnumber-parent');
+		this.refs.input.parentNode.addEventListener('mousedown', this.mousedown, false);
 	},
 	comonentWillUnmount: function() {
 		// TODO: figure out if on reconcile, if this wheel event is still on it
 	    this.refs.input.parentNode.removeEventListener('wheel', this.wheel, false);
+
+		this.refs.input.parentNode.classList.remove('inputnumber-parent');
 	},
 	render: function() {
 		// fetch all props as domProps
@@ -404,16 +410,6 @@ var InputNumber = React.createClass({
 			return true;
 		}
 	},
-	testThenDispatch: function(value) {
-		// tests if value is within min and max, then calls dispatcher with it
-		if (this.testValid(value)) {
-			if (this.value !== value) {
-				this.refs.input.value = value;
-				this.value = value;
-			}
-			this.progProps.dispatcher(value);
-		}
-	},
 	change: function(e) {
 		// TODO: i hope this only triggers when user changes - verify
 		console.log('user changed field value in dom! this.value:', this.value, 'dom value:', this.refs.input.value);
@@ -478,9 +474,69 @@ var InputNumber = React.createClass({
 			// update dom error class
 			this.setValid();
 		} else {
-			console.log('wheel calculated invalid value, so dont do anything, value:', newValue);
+			console.log('keydown calculated invalid value, so dont do anything, value:', newValue);
+		}
+	},
+	mousedown: function(e) {
+		if (e.button != 0) { return }
+
+		if (e.target == this.refs.input) { return } // as user is doing selection
+
+		if (!this.testValid(this.value)) {
+			console.log('dom value is currently invalid, so mousedown/mousemove will do nothing')
+			return
 		}
 
+		this.downx = e.clientX;
+		this.downval = this.value;
+
+		this.downcover = document.createElement('div');
+		this.downcover.setAttribute('id', 'inputnumber_cover');
+		document.documentElement.appendChild(this.downcover);
+
+		window.addEventListener('mouseup', this.mouseup, false);
+		window.addEventListener('mousemove', this.mousemove, false);
+	},
+	mouseup: function(e) {
+		if (e.button != 0) { return }
+
+		window.removeEventListener('mouseup', this.mouseup, false);
+		window.removeEventListener('mousemove', this.mousemove, false);
+
+		this.downcover.parentNode.removeChild(this.downcover);
+
+		delete this.downx;
+		delete this.downval;
+		delete this.downcover;
+	},
+	mousemove: function(e) {
+		var delX = e.clientX - this.downx;
+
+		var delSensitivity = delX / this.progProps.sensitivty;
+
+		var newValue = this.downval + Math.round(delSensitivity * this.progProps.crement);
+
+		// this block makes it hit min/max in case user moved mouse so fast the calc is less then the min/max
+		if ('min' in this.progProps && this.progProps.min !== undefined && newValue < this.progProps.min) {
+			if (this.value !== this.progProps.min) {
+				newValue = this.progProps.min;
+			}
+		} else if ('max' in this.progProps && this.progProps.max !== undefined && newValue > this.progProps.max) {
+			if (this.value !== this.progProps.max) {
+				newValue = this.progProps.max;
+			}
+		}
+		if (this.testValid(newValue)) {
+			// update dom
+			this.value = newValue;
+			this.refs.input.value = this.value;
+			// update state
+			this.progProps.dispatcher(this.value);
+			// update dom error class
+			this.setValid();
+		} else {
+			console.log('mousemove calculated invalid value, so dont do anything, value:', newValue);
+		}
 	}
 });
 
