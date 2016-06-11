@@ -23,12 +23,12 @@ function init() {
 		console.log('core:', aCore);
 		core = aCore;
 
-		// update favicon as the setCurrentURI and pushState trick ruins it
-		var link = document.createElement('link');
-	    link.type = 'image/x-icon';
-	    link.rel = 'shortcut icon';
-	    link.href = core.addon.path.images + 'icon-color16.png';
-	    document.getElementsByTagName('head')[0].appendChild(link);
+		// // update favicon as the setCurrentURI and pushState trick ruins it
+		// var link = document.createElement('link');
+	    // link.type = 'image/x-icon';
+	    // link.rel = 'shortcut icon';
+	    // link.href = core.addon.path.images + 'icon-color16.png';
+	    // document.getElementsByTagName('head')[0].appendChild(link);
 
 		console.log('ok rendering react');
 
@@ -97,32 +97,115 @@ var App = React.createClass({
 		var { page } = this.props;
 		console.log('this.props:', this.props);
 
-		var cProps = {
-			id: 'page',
-			className: 'page'
-		};
-
 		console.log(page.name + 'Page')
-		var rElPage = gContent[page.name + 'Page'] || InvalidPage;
 
-		return React.createElement('div', cProps,
-			'App',
-			React.createElement(rElPage, { page })
-		);
+		var pageREl = gContent[page.name + 'Page'] || InvalidPage;
+
+		return React.createElement(pageREl, { param:page.param })
 	}
 });
 
 var RecordingPage = React.createClass({
+	componentDidMount() {
+		document.querySelector('title').textContent = formatStringFromNameCore('newrecording_title', 'app');
+	},
 	render() {
-		return React.createElement('div', null,
-			'Recording'
-		);
+		var { param } = this.props;
+
+		if (param == 'new') {
+			var captureSystemVideoItems = [
+				{ name:formatStringFromNameCore('newrecording_monitor', 'app'), desc:formatStringFromNameCore('newrecording_monitor_desc', 'app') },
+				{ name:formatStringFromNameCore('newrecording_window', 'app'), desc:formatStringFromNameCore('newrecording_window_desc', 'app') },
+				{ name:formatStringFromNameCore('newrecording_application', 'app'), desc:formatStringFromNameCore('newrecording_application_desc', 'app') }
+			];
+
+			var captureAudioItems = [
+				{ name:formatStringFromNameCore('newrecording_mic', 'app') },
+				{ name:formatStringFromNameCore('newrecording_systemaudio', 'app'), unsupported:true }
+			];
+
+			var captureOtherVideoItems = [
+				{ name:formatStringFromNameCore('newrecording_webcam', 'app'), unsupported:true }
+			];
+
+			return React.createElement('div', { id:'NewRecordingPage', className:'container page' },
+				React.createElement('div', { className:'header clearfix' },
+					React.createElement('h3', { className:'pull-right' },
+						formatStringFromNameCore('addon_name', 'main')
+					),
+					React.createElement('h1', undefined,
+						formatStringFromNameCore('newrecording_header', 'app')
+					)
+				),
+				React.createElement('div', { id:'controls' },
+					React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_start', 'app'), color:'success', glyph:'play' })
+				),
+				React.createElement(BootstrapListGroup, { items:captureSystemVideoItems }),
+				React.createElement('div', { id:'options' },
+					React.createElement(BootstrapButtonGroup, { items:captureAudioItems }),
+					React.createElement(BootstrapButtonGroup, { items:captureOtherVideoItems }),
+					React.createElement('div', undefined,
+						React.createElement('div', { className:'input-group input-group-lg' },
+							React.createElement('span', { className:'input-group-addon' },
+								formatStringFromNameCore('newrecording_fps', 'app')
+							),
+							React.createElement('input', { id:'fps', type:'text', maxLength:2, className:'form-control', placeholder:'10' })
+						)
+					)
+				)
+			);
+		} else if (!isNaN(param)) {
+			return React.createElement('div', { id:'ManageRecordingPage', className:'container page' },
+				'Manage Recording (ID:' + param + ')'
+			);
+		} else {
+			throw new Error('should never get here');
+		}
 	}
 });
 
+const BootstrapButton = ({ color='default', glyph, name, disabled, active, unsupported }) => (
+	// active,disabled,unsupported is optional, can be undefined, else bool
+	// color, glyph, name are str
+	// name is also optional, can be undefined
+	React.createElement('button', { type:'button', className:'btn btn-'+color+' btn-lg' },
+		!glyph ? undefined : React.createElement('span', { className:'glyphicon glyphicon-'+glyph, 'aria-hidden':'true' }),
+		(glyph && name) ? ' ' : undefined,
+		name, // can be undefined
+		!unsupported ? undefined : React.createElement('small', undefined,
+			formatStringFromNameCore('unsupported', 'app')
+		)
+	)
+);
+
+const BootstrapListGroup = ({ items }) => (
+	// items should be array of objects like this:
+	// { name:str, desc:str, active:bool, disabled:bool } // active is optional, can be undefined // desc is optional, can be undefined // disabled is optional, can be undefined
+	React.createElement('div', { className:'list-group' },
+		items.map(item => React.createElement('a', { href:'#', className:'list-group-item' + (!item.active ? '' : ' active'), disabled:item.disabled },
+			React.createElement('h4', {},
+				item.name
+			),
+			!item.desc ? undefined : React.createElement('p', { className:'list-group-item-text' },
+				item.desc
+			)
+		))
+	)
+);
+
+const BootstrapButtonGroup = ({ items }) => (
+	// items should be array of objects like this:
+	// each object should like like the arg to BootstarpButton
+	React.createElement('div', { className:'btn-group btn-group-lg', role:'group' },
+		items.map(item => BootstrapButton(item))
+	)
+);
+
 var IndexPage = React.createClass({
 	render() {
-		return React.createElement('div', null,
+		var { param } = this.props;
+
+		return React.createElement('div', { id:'IndexPage', className:'container page' },
 			'Index'
 		);
 	}
@@ -130,7 +213,7 @@ var IndexPage = React.createClass({
 
 var InvalidPage = React.createClass({
 	render() {
-		return React.createElement('div', null,
+		return React.createElement('div', { id:'InvalidPage', className:'container page' },
 			'INVALID PAGE'
 		);
 	}
@@ -147,11 +230,11 @@ function formatStringFromNameCore(aLocalizableStr, aLoalizedKeyInCoreAddonL10n, 
 	// 051916 update - made it core.addon.l10n based
     // formatStringFromNameCore is formating only version of the worker version of formatStringFromName, it is based on core.addon.l10n cache
 
-	// try {
-	// 	var cLocalizedStr = core.addon.l10n[aLoalizedKeyInCoreAddonL10n];
-	// } catch (ex) {
-	// 	console.error('formatStringFromNameCore error:', ex, 'args:', aLocalizableStr, aLoalizedKeyInCoreAddonL10n, aReplacements);
-	// }
+	try {
+		var cLocalizedStr = core.addon.l10n[aLoalizedKeyInCoreAddonL10n][aLocalizableStr];
+	} catch (ex) {
+		console.error('formatStringFromNameCore error:', ex, 'args:', aLocalizableStr, aLoalizedKeyInCoreAddonL10n, aReplacements);
+	}
 	var cLocalizedStr = core.addon.l10n[aLoalizedKeyInCoreAddonL10n][aLocalizableStr];
 	// console.log('cLocalizedStr:', cLocalizedStr, 'args:', aLocalizableStr, aLoalizedKeyInCoreAddonL10n, aReplacements);
     if (aReplacements) {

@@ -79,27 +79,38 @@ body {
 }
 
 
-/* start NewRecording */
-#NewRecording {
+/* start NewRecordingPage */
+#NewRecordingPage {
 
 }
 
-#NewRecording .header h3 {
+#NewRecordingPage .header h3 {
 	background: transparent url("chrome://screencastify/content/resources/images/icon-color22.png") no-repeat scroll 0 50%;
 	padding-left: 28px;
 }
 
-#NewRecording #controls {
+#NewRecordingPage #controls {
     text-align: center;
     margin-bottom: 30px;
 }
 
-#NewRecording button small {
+#NewRecordingPage #options {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+}
+
+#NewRecordingPage #options input {
+    width: 4em;
+    text-align: center;
+}
+
+#NewRecordingPage button small {
     font-size: 0.8em;
     vertical-align: -moz-calc(0.1em);
 }
 
-#NewRecording button small {
+#NewRecordingPage button small {
     font-size: 0.8em;
     vertical-align: -moz-calc(0.1em);
 }
