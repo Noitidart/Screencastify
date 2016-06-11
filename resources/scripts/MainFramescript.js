@@ -80,14 +80,14 @@ var pageLoader = {
 		var contentWindow = aContentWindow;
 		console.log('ready enter');
 
-		// trick firefox into thinking my about page is https and hostname is screencastify by doing pushState
-		// doing setCurrentURI does not do the trick. i need to change the webNav.document.documentURI, which is done by pushState
-		var webNav = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
-		var docURI = webNav.document.documentURI;
-		console.log('docURI:', docURI);
-		webNav.setCurrentURI(Services.io.newURI('https://screencastify', null, null)); // need to setCurrentURI otherwise the pushState says operation insecure
-		contentWindow.history.pushState({key:Date.now()+''}, '', docURI.replace('about:screencastify', 'https://screencastify')); // note: for mediaSource:'screen' it MUST be https://screencastify/SOMETHING_HERE otherwise it wont work
-		webNav.setCurrentURI(Services.io.newURI(docURI, null, null)); // make it look like about uri again
+		// // trick firefox into thinking my about page is https and hostname is screencastify by doing pushState
+		// // doing setCurrentURI does not do the trick. i need to change the webNav.document.documentURI, which is done by pushState
+		// var webNav = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
+		// var docURI = webNav.document.documentURI;
+		// console.log('docURI:', docURI);
+		// webNav.setCurrentURI(Services.io.newURI('https://screencastify', null, null)); // need to setCurrentURI otherwise the pushState says operation insecure
+		// contentWindow.history.pushState({key:Date.now()+''}, '', docURI.replace('about:screencastify', 'https://screencastify')); // note: for mediaSource:'screen' it MUST be https://screencastify/SOMETHING_HERE otherwise it wont work
+		// webNav.setCurrentURI(Services.io.newURI(docURI, null, null)); // make it look like about uri again
 
 
 		gWinComm = new contentComm(contentWindow); // cross-file-link884757009
