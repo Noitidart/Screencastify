@@ -487,6 +487,8 @@ var InputNumber = React.createClass({
 			return
 		}
 
+		this.down_allowed = true;
+
 		this.downx = e.clientX;
 		this.downval = this.value;
 
@@ -534,7 +536,17 @@ var InputNumber = React.createClass({
 			this.progProps.dispatcher(this.value);
 			// update dom error class
 			this.setValid();
+			// update cover cursor
+			if (!this.down_allowed) {
+				this.down_allowed = true;
+				this.downcover.classList.remove('not-allowed');
+			}
 		} else {
+			// update cover cursor
+			if (this.down_allowed) {
+				this.down_allowed = false;
+				this.downcover.classList.add('not-allowed');
+			}
 			console.log('mousemove calculated invalid value, so dont do anything, value:', newValue);
 		}
 	}
