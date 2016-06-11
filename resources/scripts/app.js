@@ -12,11 +12,27 @@ function getPage() {
 	var name = match[2] || 'index';
 	name = name[0].toUpperCase() + name.substr(1).toLowerCase();
 	var param = match[3]; // if page is index, there is no param, so this will be undefined
-	return {
+	name += 'Page';
+
+	// special page name/param combos
+	switch (name) {
+		case 'RecordingPage':
+				if (param == 'new') {
+					name = 'NewRecordingPage';
+				} else if (!isNaN(param)) {
+					name = 'ManageRecordingPage';
+				}
+			break;
+	}
+
+	gPage = {
 		name,
 		param
 	};
+
+	return gPage;
 }
+getPage();
 
 function init() {
 	gFsComm.postMessage('callInBootstrap', {method:'fetchCore',wait:true}, null, function(aCore) {
@@ -32,7 +48,7 @@ function init() {
 
 		console.log('ok rendering react');
 
-		var page = getPage();
+		var page = gPage;
 
 		ReactDOM.render(
 			React.createElement(ReactRedux.Provider, { store },
@@ -56,35 +72,106 @@ function uninit() {
 
 
 // ACTIONS
-const REPLACE_ALERT = 'REPLACE_ALERT';
+switch (gPage.name) {
+	case 'NewRecordingPage':
+			var SET_PARAM = 'SET_PARAM';
+			var TOGGLE_OPT = 'TOGGLE_OPT';
 
-// non-action constants
+			// non-action - SET_PARAM systemvideo
+			var SYSTEMVIDEO_MONITOR = 'SYSTEMVIDEO_MONITOR';
+			var SYSTEMVIDEO_WINDOW = 'SYSTEMVIDEO_WINDOW';
+			var SYSTEMVIDEO_APPLICATION = 'SYSTEMVIDEO_APPLICATION';
+
+		break;
+}
+
+// const REPLACE_ALERT = 'REPLACE_ALERT';
 
 // ACTION CREATORS
-function replace_alert(str) {
-	return {
-		type: REPLACE_ALERT,
-		str
-	};
-}
-// REDUCERS
-/*
-const initialState = {
-	alert: ''
-};
-*/
-function alert(state='', action) {
-	switch (action.type) {
-		case REPLACE_ALERT:
-			return action.str;
-		default:
-			return state;
-	}
+switch (gPage.name) {
+	case 'NewRecordingPage':
+
+			function setParam(param, value) {
+				return {
+					type: SET_PARAM,
+					param,
+					value
+				}
+			}
+
+			function toggleOpt(opt) {
+				return {
+					type: TOGGLE_OPT,
+					opt
+				}
+			}
+
+		break;
 }
 
-const app = Redux.combineReducers({
-	alert
-});
+// REDUCERS
+var pageReducers = {};
+switch (gPage.name) {
+	case 'NewRecordingPage':
+
+			/* state shape
+			const initialState = {
+				options: {
+					mic: bool - default:false
+					webcam: bool - default:false
+					systemaudio: bool - default:false
+				},
+				params: {
+					systemvideo: enum[SYSTEMVIDEO_MONITOR, SYSTEMVIDEO_WINDOW, SYSTEMVIDEO_APPLICATION] - default:SYSTEMVIDEO_MONITOR
+					fps: int - default:10
+				}
+			};
+			*/
+
+			function params(state={systemvideo:SYSTEMVIDEO_MONITOR, fps:10}, action) {
+				switch (action.type) {
+					case SET_PARAM:
+						return Object.assign({}, state, {
+							[action.param]: action.value
+						});
+					default:
+						return state;
+				}
+			}
+
+			function options(state={mic:false, webcam:false, systemaudio:false}, action) {
+				switch (action.type) {
+					case TOGGLE_OPT:
+						return Object.assign({}, state, {
+							[action.opt]: !state[action.opt]
+						});
+					default:
+						return state;
+				}
+			}
+
+			pageReducers = {
+				params,
+				options
+			};
+
+		break;
+}
+
+// function alert(state='', action) {
+// 	switch (action.type) {
+// 		case REPLACE_ALERT:
+// 			return action.str;
+// 		default:
+// 			return state;
+// 	}
+// }
+
+const app = Redux.combineReducers(
+	Object.assign(pageReducers, {
+		// alert
+	})
+);
 
 // STORE
 var store = Redux.createStore(app);
@@ -95,80 +182,107 @@ var unsubscribe = store.subscribe(() => console.log(store.getState()) );
 var App = React.createClass({
 	render() {
 		var { page } = this.props;
-		console.log('this.props:', this.props);
-
-		console.log(page.name + 'Page')
-
-		var pageREl = gContent[page.name + 'Page'] || InvalidPage;
+		console.log('App props:', this.props);
+		console.log('container of page:', page.name.replace('Page', 'Container'));
+		var pageREl = gContent[page.name.replace('Page', 'Container')] || gContent[page.name] || InvalidPage;
 
 		return React.createElement(pageREl, { param:page.param })
 	}
 });
 
-var RecordingPage = React.createClass({
+var NewRecordingPage = React.createClass({
+	componentDidMount() {
+		document.querySelector('title').textContent = formatStringFromNameCore('newrecording_title', 'app');
+	},
+	render() {
+		var { param, mic, systemaudio, webcam, fps, systemvideo, toggle, set } = this.props;
+		console.log('NewRecordingPage props:', this.props);
+
+		var captureSystemVideoItems = [
+			{ name:formatStringFromNameCore('newrecording_application', 'app'), desc:formatStringFromNameCore('newrecording_application_desc', 'app'), active:(systemvideo === SYSTEMVIDEO_APPLICATION), onClick:this.setSystemvideoApplication },
+			{ name:formatStringFromNameCore('newrecording_monitor', 'app'), desc:formatStringFromNameCore('newrecording_monitor_desc', 'app'), active:(systemvideo === SYSTEMVIDEO_MONITOR), onClick:this.setSystemvideoMonitor },
+			{ name:formatStringFromNameCore('newrecording_window', 'app'), desc:formatStringFromNameCore('newrecording_window_desc', 'app'), active:(systemvideo === SYSTEMVIDEO_WINDOW), onClick:this.setSystemvideoWindow }
+		];
+
+		var captureAudioItems = [
+			{ name:formatStringFromNameCore('newrecording_mic', 'app'), active:mic, onClick:this.toggleMic },
+			{ name:formatStringFromNameCore('newrecording_systemaudio', 'app'), active:systemaudio, onClick:this.toggleSystemaudio, unsupported:true }
+		];
+
+		var captureOtherVideoItems = [
+			{ name:formatStringFromNameCore('newrecording_webcam', 'app'), active:webcam, onClick:this.toggleWebcam, unsupported:true }
+		];
+
+		return React.createElement('div', { id:'NewRecordingPage', className:'container page' },
+			React.createElement('div', { className:'header clearfix' },
+				React.createElement('h3', { className:'pull-right' },
+					formatStringFromNameCore('addon_name', 'main')
+				),
+				React.createElement('h1', undefined,
+					formatStringFromNameCore('newrecording_header', 'app')
+				)
+			),
+			React.createElement('div', { id:'controls' },
+				React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_start', 'app'), color:'success', glyph:'play' })
+			),
+			React.createElement(BootstrapListGroup, { items:captureSystemVideoItems }),
+			React.createElement('div', { id:'options' },
+				React.createElement(BootstrapButtonGroup, { items:captureAudioItems }),
+				React.createElement(BootstrapButtonGroup, { items:captureOtherVideoItems }),
+				React.createElement('div', undefined,
+					React.createElement('div', { className:'input-group input-group-lg' },
+						React.createElement('label', { className:'input-group-addon', htmlFor:'fps' },
+							formatStringFromNameCore('newrecording_fps', 'app')
+						),
+						React.createElement('input', { id:'fps', type:'text', maxLength:2, className:'form-control', placeholder:'10', defaultValue:fps })
+					)
+				)
+			)
+		);
+
+		//
+	},
+	toggleMic: function() {
+		this.props.toggle('mic');
+	},
+	toggleSystemaudio: function() {
+		this.props.toggle('systemaudio');
+	},
+	toggleWebcam: function() {
+		this.props.toggle('webcam');
+	},
+	setSystemvideoMonitor: function() {
+		this.props.set('systemvideo', SYSTEMVIDEO_MONITOR);
+	},
+	setSystemvideoApplication: function() {
+		this.props.set('systemvideo', SYSTEMVIDEO_APPLICATION);
+	},
+	setSystemvideoWindow: function() {
+		this.props.set('systemvideo', SYSTEMVIDEO_WINDOW);
+	}
+});
+
+var ManageRecordingPage = React.createClass({
 	componentDidMount() {
 		document.querySelector('title').textContent = formatStringFromNameCore('newrecording_title', 'app');
 	},
 	render() {
 		var { param } = this.props;
 
-		if (param == 'new') {
-			var captureSystemVideoItems = [
-				{ name:formatStringFromNameCore('newrecording_monitor', 'app'), desc:formatStringFromNameCore('newrecording_monitor_desc', 'app') },
-				{ name:formatStringFromNameCore('newrecording_window', 'app'), desc:formatStringFromNameCore('newrecording_window_desc', 'app') },
-				{ name:formatStringFromNameCore('newrecording_application', 'app'), desc:formatStringFromNameCore('newrecording_application_desc', 'app') }
-			];
+		return React.createElement('div', { id:'ManageRecordingPage', className:'container page' },
+			'Manage Recording (ID:' + param + ')'
+		);
 
-			var captureAudioItems = [
-				{ name:formatStringFromNameCore('newrecording_mic', 'app') },
-				{ name:formatStringFromNameCore('newrecording_systemaudio', 'app'), unsupported:true }
-			];
-
-			var captureOtherVideoItems = [
-				{ name:formatStringFromNameCore('newrecording_webcam', 'app'), unsupported:true }
-			];
-
-			return React.createElement('div', { id:'NewRecordingPage', className:'container page' },
-				React.createElement('div', { className:'header clearfix' },
-					React.createElement('h3', { className:'pull-right' },
-						formatStringFromNameCore('addon_name', 'main')
-					),
-					React.createElement('h1', undefined,
-						formatStringFromNameCore('newrecording_header', 'app')
-					)
-				),
-				React.createElement('div', { id:'controls' },
-					React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_start', 'app'), color:'success', glyph:'play' })
-				),
-				React.createElement(BootstrapListGroup, { items:captureSystemVideoItems }),
-				React.createElement('div', { id:'options' },
-					React.createElement(BootstrapButtonGroup, { items:captureAudioItems }),
-					React.createElement(BootstrapButtonGroup, { items:captureOtherVideoItems }),
-					React.createElement('div', undefined,
-						React.createElement('div', { className:'input-group input-group-lg' },
-							React.createElement('label', { className:'input-group-addon', htmlFor:'fps' },
-								formatStringFromNameCore('newrecording_fps', 'app')
-							),
-							React.createElement('input', { id:'fps', type:'text', maxLength:2, className:'form-control', placeholder:'10' })
-						)
-					)
-				)
-			);
-		} else if (!isNaN(param)) {
-			return React.createElement('div', { id:'ManageRecordingPage', className:'container page' },
-				'Manage Recording (ID:' + param + ')'
-			);
-		} else {
-			throw new Error('should never get here');
-		}
+		//
 	}
 });
 
-const BootstrapButton = ({ color='default', glyph, name, disabled, active, unsupported }) => (
+const BootstrapButton = ({ color='default', glyph, name, disabled, active, unsupported, onClick }) => (
 	// active,disabled,unsupported is optional, can be undefined, else bool
 	// color, glyph, name are str
 	// name is also optional, can be undefined
-	React.createElement('button', { type:'button', className:'btn btn-'+color+' btn-lg', title:(unsupported ? formatStringFromNameCore('newrecording_unsupported_tooltip', 'app') : undefined), disabled:((unsupported || disabled) ? true : undefined) },
+	// onClick is a function, optional
+	React.createElement('button', { type:'button', className:'btn btn-'+color+' btn-lg' + (active ? ' active' : ''), title:(unsupported ? formatStringFromNameCore('newrecording_unsupported_tooltip', 'app') : undefined), disabled:(unsupported || disabled ? true : undefined), onClick },
 		!glyph ? undefined : React.createElement('span', { className:'glyphicon glyphicon-'+glyph, 'aria-hidden':'true' }),
 		(glyph && name) ? ' ' : undefined,
 		name // can be undefined
@@ -177,9 +291,9 @@ const BootstrapButton = ({ color='default', glyph, name, disabled, active, unsup
 
 const BootstrapListGroup = ({ items }) => (
 	// items should be array of objects like this:
-	// { name:str, desc:str, active:bool, disabled:bool } // active is optional, can be undefined // desc is optional, can be undefined // disabled is optional, can be undefined
+	// { name:str, desc:str, active:bool, disabled:bool, onClick:func } // active is optional, can be undefined // desc is optional, can be undefined // disabled is optional, can be undefined
 	React.createElement('div', { className:'list-group' },
-		items.map(item => React.createElement('a', { href:'#', className:'list-group-item' + (!item.active ? '' : ' active'), disabled:item.disabled },
+		items.map(item => React.createElement('a', { href:'#', onClick:item.onClick, className:'list-group-item' + (!item.active ? '' : ' active'), disabled:item.disabled },
 			React.createElement('h4', {},
 				item.name
 			),
@@ -217,6 +331,31 @@ var InvalidPage = React.createClass({
 });
 
 // REACT COMPONENTS - CONTAINER
+const NewRecordingContainerMethods = {
+	toggle: function(opt) {
+		store.dispatch(toggleOpt(opt))
+	},
+	set: function(param, value) {
+		store.dispatch(setParam(param, value))
+	}
+};
+var NewRecordingContainer = ReactRedux.connect(
+	function mapStateToProps(state, ownProps) {
+		return {
+			mic: state.options.mic,
+			systemaudio: state.options.systemaudio,
+			webcam: state.options.webcam,
+			fps: state.params.fps,
+			systemvideo: state.params.systemvideo
+		}
+	},
+	function mapDispatchToProps(dispatch, ownProps) {
+		return {
+			toggle: NewRecordingContainerMethods.toggle,
+			set: NewRecordingContainerMethods.set
+		}
+	}
+)(NewRecordingPage);
 
 // end - react-redux
 

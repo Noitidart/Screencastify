@@ -78,6 +78,10 @@ body {
   }
 }
 
+/* start mine global */
+button {
+    outline: 0 !important;
+}
 
 /* start NewRecordingPage */
 #NewRecordingPage {
