@@ -1,5 +1,5 @@
 <!DOCTYPE html SYSTEM "chrome://screencastify/locale/app.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="&boostrap_lang;">
 	<head>
 		<title>screencastify app</title><!-- TODO: localize this -->
 		<meta http-equiv="Content-Type" content="text/html; charset=us-ascii" />
@@ -23,7 +23,7 @@
 	<body role="document">
 		<div id="root" />
 
-		<div class="container">
+		<div class="container" id="NewRecordingPage">
 			<div class="header clearfix">
 				<h3 class="pull-right">Screencastify</h3>
 				<h1>New Recording</h1>
@@ -41,6 +41,10 @@
 				<button type="button" class="btn btn-danger btn-lg">
 					<span class="glyphicon glyphicon-stop" aria-hidden="true"></span>
 					Stop Recording
+				</button>
+				<button type="button" class="btn btn-default btn-lg" disabled="">
+					<span class="glyphicon glyphicon-hourglass" aria-hidden="true"></span>
+					Initializing...
 				</button>
 			</div>
 
@@ -77,12 +81,18 @@
 				</button>
 				<button type="button" class="btn btn-default" disabled="" title="Capturing system audio not yet supported">
 					System Sound
+					<small>
+						(not yet supported)
+					</small>
 				</button>
 			</div>
 
 			<div class="btn-group btn-group-lg" role="group" aria-label="Large button group">
-				<button type="button" class="btn btn-default">
-					Webcam Video
+				<button type="button" class="btn btn-default" disabled="">
+					Webcam
+					<small>
+						(not yet supported)
+					</small>
 				</button>
 			</div>
 

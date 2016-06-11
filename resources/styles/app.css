@@ -2,7 +2,6 @@
 body {
   padding-top: 20px;
   padding-bottom: 20px;
-  font-size: 2em;
 }
 
 /* Everything but the jumbotron gets side spacing for mobile first views */
@@ -80,13 +79,27 @@ body {
 }
 
 
-/* start mine */
-.header h3 {
+/* start NewRecording */
+#NewRecording {
+
+}
+
+#NewRecording .header h3 {
 	background: transparent url("chrome://screencastify/content/resources/images/icon-color22.png") no-repeat scroll 0 50%;
 	padding-left: 28px;
 }
 
-#controls {
+#NewRecording #controls {
     text-align: center;
     margin-bottom: 30px;
+}
+
+#NewRecording button small {
+    font-size: 0.8em;
+    vertical-align: -moz-calc(0.1em);
+}
+
+#NewRecording button small {
+    font-size: 0.8em;
+    vertical-align: -moz-calc(0.1em);
 }
