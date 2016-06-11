@@ -80,10 +80,15 @@ var pageLoader = {
 		var contentWindow = aContentWindow;
 		console.log('ready enter');
 
-		// var webNav = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
-		// console.log('webNav:', webNav);
-		// console.log('webNav.setCurrentURI,', webNav.setCurrentURI);
-		// webNav.setCurrentURI(Services.io.newURI('https://mozilla.github.io/', null, null));
+		// trick firefox into thinking my about page is https and hostname is screencastify by doing pushState
+		// doing setCurrentURI does not do the trick. i need to change the webNav.document.documentURI, which is done by pushState
+		var webNav = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
+		var docURI = webNav.document.documentURI;
+		console.log('docURI:', docURI);
+		webNav.setCurrentURI(Services.io.newURI('https://screencastify', null, null)); // need to setCurrentURI otherwise the pushState says operation insecure
+		contentWindow.history.pushState({key:Date.now()+''}, '', docURI.replace('about:screencastify', 'https://screencastify')); // note: for mediaSource:'screen' it MUST be https://screencastify/SOMETHING_HERE otherwise it wont work
+		webNav.setCurrentURI(Services.io.newURI(docURI, null, null)); // make it look like about uri again
+
 
 		gWinComm = new contentComm(contentWindow); // cross-file-link884757009
 
@@ -104,6 +109,10 @@ var pageLoader = {
 	error: function(aContentWindow, aDocURI) {
 		// triggered when page fails to load due to error
 		console.warn('hostname page ready, but an error page loaded, so like offline or something, aHref:', aContentWindow.location.href, 'aDocURI:', aDocURI);
+		if (aContentWindow.location.href.startsWith('about:screencastify')) {
+			aContentWindow.location.href = aContentWindow.location.href;
+		}
+		//  about:screencastify?recording/new aDocURI: about:neterror?e=malformedURI&u=about%3Ascreencastify%3Frecording/new&c=&f=regular&d=The%20URL%20is%20not%20valid%20and%20cannot%20be%20loaded.
 	},
 	readyNonmatch: function(aContentWindow) {
 		gWinComm = null;
@@ -212,9 +221,12 @@ function init() {
 			initAndRegisterAboutScreencastify();
 		} catch(ignore) {} // its non-e10s so it will throw saying already registered
 
+		// var webNav = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
+		// var docURI = webNav.document.documentURI;
+		// console.error('testing matches', content.window.location.href, 'docURI:', docURI);
 		if (pageLoader.matches(content.window.location.href.toLowerCase(), content.window.location)) {
 			// for about pages, need to reload it, as it it loaded before i registered it
-			content.window.location.reload();
+			content.window.location.href = content.window.location.href; // cannot use .reload() as the webNav.document.documentURI is now https://screencastify/
 
 			// // for non-about pages, i dont reload, i just initiate the ready of pageLoader
 			// if (content.document.readyState == 'interactive' || content.document.readyState == 'complete') {

@@ -175,11 +175,12 @@ var windowListener = {
 var gRecord;
 
 function cuiClick(e) {
-	if (gRecord) {
-		globalRecordStop();
-	} else {
-		gWkComm.postMessage('globalRecordNew');
-	}
+	Services.wm.getMostRecentWindow('navigator:browser').gBrowser.loadOneTab('about:screencastify?recording/new', { inBackground:false });
+	// if (gRecord) {
+	// 	globalRecordStop();
+	// } else {
+	// 	gWkComm.postMessage('globalRecordNew');
+	// }
 }
 
 var gFHR = []; // holds all currently alive FHR instances. keeps track of FHR's so it destroys them on shutdown. if devuser did not handle destroying it
