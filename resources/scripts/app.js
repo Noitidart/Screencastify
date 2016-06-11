@@ -23,6 +23,13 @@ function init() {
 		console.log('core:', aCore);
 		core = aCore;
 
+		// update favicon as the setCurrentURI and pushState trick ruins it
+		var link = document.createElement('link');
+	    link.type = 'image/x-icon';
+	    link.rel = 'shortcut icon';
+	    link.href = core.addon.path.images + 'icon-color16.png';
+	    document.getElementsByTagName('head')[0].appendChild(link);
+
 		console.log('ok rendering react');
 
 		var page = getPage();
