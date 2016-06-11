@@ -195,22 +195,24 @@ var NewRecordingPage = React.createClass({
 		document.querySelector('title').textContent = formatStringFromNameCore('newrecording_title', 'app');
 	},
 	render() {
-		var { param, mic, systemaudio, webcam, fps, systemvideo, toggle, set } = this.props;
-		console.log('NewRecordingPage props:', this.props);
+		var { param } = this.props; // passed from parent component
+		var { mic, systemaudio, webcam, fps, systemvideo } = this.props; // passed from mapStateToProps
+		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication } = this.props; // passed from mapDispatchToProps
+		// console.log('NewRecordingPage props:', this.props);
 
 		var captureSystemVideoItems = [
-			{ name:formatStringFromNameCore('newrecording_application', 'app'), desc:formatStringFromNameCore('newrecording_application_desc', 'app'), active:(systemvideo === SYSTEMVIDEO_APPLICATION), onClick:this.setSystemvideoApplication },
-			{ name:formatStringFromNameCore('newrecording_monitor', 'app'), desc:formatStringFromNameCore('newrecording_monitor_desc', 'app'), active:(systemvideo === SYSTEMVIDEO_MONITOR), onClick:this.setSystemvideoMonitor },
-			{ name:formatStringFromNameCore('newrecording_window', 'app'), desc:formatStringFromNameCore('newrecording_window_desc', 'app'), active:(systemvideo === SYSTEMVIDEO_WINDOW), onClick:this.setSystemvideoWindow }
+			{ name:formatStringFromNameCore('newrecording_application', 'app'), desc:formatStringFromNameCore('newrecording_application_desc', 'app'), active:(systemvideo === SYSTEMVIDEO_APPLICATION), onClick:setSystemvideoApplication },
+			{ name:formatStringFromNameCore('newrecording_monitor', 'app'), desc:formatStringFromNameCore('newrecording_monitor_desc', 'app'), active:(systemvideo === SYSTEMVIDEO_MONITOR), onClick:setSystemvideoMonitor },
+			{ name:formatStringFromNameCore('newrecording_window', 'app'), desc:formatStringFromNameCore('newrecording_window_desc', 'app'), active:(systemvideo === SYSTEMVIDEO_WINDOW), onClick:setSystemvideoWindow }
 		];
 
 		var captureAudioItems = [
-			{ name:formatStringFromNameCore('newrecording_mic', 'app'), active:mic, onClick:this.toggleMic },
-			{ name:formatStringFromNameCore('newrecording_systemaudio', 'app'), active:systemaudio, onClick:this.toggleSystemaudio, unsupported:true }
+			{ name:formatStringFromNameCore('newrecording_mic', 'app'), active:mic, onClick:toggleMic },
+			{ name:formatStringFromNameCore('newrecording_systemaudio', 'app'), active:systemaudio, onClick:toggleSystemaudio, unsupported:true }
 		];
 
 		var captureOtherVideoItems = [
-			{ name:formatStringFromNameCore('newrecording_webcam', 'app'), active:webcam, onClick:this.toggleWebcam, unsupported:true }
+			{ name:formatStringFromNameCore('newrecording_webcam', 'app'), active:webcam, onClick:toggleWebcam, unsupported:true }
 		];
 
 		return React.createElement('div', { id:'NewRecordingPage', className:'container page' },
@@ -234,31 +236,13 @@ var NewRecordingPage = React.createClass({
 						React.createElement('label', { className:'input-group-addon', htmlFor:'fps' },
 							formatStringFromNameCore('newrecording_fps', 'app')
 						),
-						React.createElement('input', { id:'fps', type:'text', maxLength:2, className:'form-control', placeholder:'10', defaultValue:fps })
+						React.createElement(InputNumber, { id:'fps', className:'form-control', placeholder:10, defaultValue:fps, min:1, max:60, dispatcher:setFps })
 					)
 				)
 			)
 		);
 
 		//
-	},
-	toggleMic: function() {
-		this.props.toggle('mic');
-	},
-	toggleSystemaudio: function() {
-		this.props.toggle('systemaudio');
-	},
-	toggleWebcam: function() {
-		this.props.toggle('webcam');
-	},
-	setSystemvideoMonitor: function() {
-		this.props.set('systemvideo', SYSTEMVIDEO_MONITOR);
-	},
-	setSystemvideoApplication: function() {
-		this.props.set('systemvideo', SYSTEMVIDEO_APPLICATION);
-	},
-	setSystemvideoWindow: function() {
-		this.props.set('systemvideo', SYSTEMVIDEO_WINDOW);
 	}
 });
 
@@ -330,14 +314,180 @@ var InvalidPage = React.createClass({
 	}
 });
 
-// REACT COMPONENTS - CONTAINER
-const NewRecordingContainerMethods = {
-	toggle: function(opt) {
-		store.dispatch(toggleOpt(opt))
+var gInputNumberId = 1;
+var InputNumber = React.createClass({
+	componentDidMount: function() {
+		this.refs.input.parentNode.addEventListener('wheel', this.wheel, false);
+
+		// set up local globals
+		// this.value is the physically value that is currently showing in the input, NOT necessarily what is in the state object
+		if (!('defaultValue' in this.props)) { console.error('deverror'); throw new Error('in my design i expect for a defaultValue to be there') }
+		this.value = this.props.defaultValue; // this.value must always be a js number
+		this.valid = true; // needed otherwise, if this.setValid finds this.value to be valid, it will try to remove from classList, its an unnecessary dom action
+		this.setValid(); // this will set this.valid for me
+		console.log('ok mounted');
 	},
-	set: function(param, value) {
-		store.dispatch(setParam(param, value))
+	comonentWillUnmount: function() {
+		// TODO: figure out if on reconcile, if this wheel event is still on it
+	    this.refs.input.parentNode.removeEventListener('wheel', this.wheel, false);
+	},
+	render: function() {
+		// fetch all props as domProps
+		var domProps = Object.assign({}, this.props);
+
+		// remove progrmatically used props from domProps, and put them into here
+		var progProps = {}; // holds values
+		this.progProps = progProps;
+		var progPropDefaults = {
+			crement: 1, // must be min of 1
+			sensitivty: 10, // must be min of 1 - while dragging mouse this many pixels will result in change of crement
+			cursor: 'ew-resize',
+			min: undefined, // optional
+			max: undefined, // optional
+			dispatcher: undefined // not optional, must be provided by parent component // dispatcher is a function that takes one argument. and will pass this argment to dispatch(actionCreator(...))
+		};
+
+		for (var name in progPropDefaults) {
+			if (name in domProps) {
+				progProps[name] = domProps[name];
+				delete domProps[name];
+			} else {
+				progProps[name] = progPropDefaults[name];
+			}
+		}
+
+		if (!progProps.dispatcher) { console.error('deverror'); throw new Error('dispatcher is required in this.props!') }
+
+		// validate domProps and add the progrmatic ones
+		domProps.className = domProps.className ? domProps.className + ' inputnumber' : 'inputnumber';
+		if (!('id' in domProps)) { domProps.id = gInputNumberId++ }
+		if (!domProps.maxLength && progProps.max) { domProps.maxLength = (progProps.max+'').length }
+		domProps.ref = 'input';
+		domProps.onWheel = this.wheel;
+		domProps.onKeyDown = this.keydown;
+		domProps.onChange = this.change;
+
+		return React.createElement('input', domProps)
+	},
+	setValid: function() {
+		// updates dom, based on physical value in dom - this.value
+			// this.valid states if this.value is valid. and this.value is what is physically in the dom field
+		// return value tells you that the dom is currently valid or not
+		var valid = this.testValid(this.value);
+		if (valid !== this.valid) {
+			this.valid = valid;
+			console.log('this.valid updated to:', valid);
+			if (!valid) {
+				this.refs.input.parentNode.classList.add('has-error');
+			} else {
+				this.refs.input.parentNode.classList.remove('has-error');
+			}
+		}
+		return valid;
+	},
+	testValid: function(value) {
+		// acts on virtual value. NOT what is physically in dom. thus a value must be passed in as argument
+		// returns false if invalid, returns true if valid
+		if (isNaN(value)) {
+			console.error('value is isNaN', value);
+			return false;
+		} else if (value == '') {
+			console.error('value is blank', value);
+			return false;
+		} else if ('min' in this.progProps && this.progProps.min !== undefined && value < this.progProps.min) {
+			console.error('value is less then min', value);
+			return false;
+		} else if ('max' in this.progProps && this.progProps.max !== undefined && value > this.progProps.max) {
+			console.error('value is greater then max', value);
+			return false;
+		} else {
+			return true;
+		}
+	},
+	testThenDispatch: function(value) {
+		// tests if value is within min and max, then calls dispatcher with it
+		if (this.testValid(value)) {
+			if (this.value !== value) {
+				this.refs.input.value = value;
+				this.value = value;
+			}
+			this.progProps.dispatcher(value);
+		}
+	},
+	change: function(e) {
+		// TODO: i hope this only triggers when user changes - verify
+		console.log('user changed field value in dom! this.value:', this.value, 'dom value:', this.refs.input.value);
+		// update this.value, as this.value is to always be kept in sync with dom
+		this.value = isNaN(this.value) ? this.refs.input.value : parseInt(this.refs.input.value);
+		if (this.setValid()) {
+			// update state
+			this.progProps.dispatcher(this.value);
+		}
+	},
+	wheel: function(e) {
+		var newValue;
+		console.log('e:', e.deltaMode, e.deltaY);
+		if (e.deltaY < 0) {
+			newValue = this.value + this.progProps.crement;
+		} else {
+			newValue = this.value - this.progProps.crement;
+		}
+
+		if (this.testValid(newValue)) {
+			// update dom
+			this.value = newValue;
+			this.refs.input.value = this.value;
+			// update state
+			this.progProps.dispatcher(this.value);
+			// update dom error class
+			this.setValid();
+		} else {
+			// if (!this.testValid(this.value)) {
+			// 	console.log('wheel calculated invalid value, but dom value (' + this.value + ') is also invald, so set the dom value, newValue:', newValue);
+			// 	this.value = newValue;
+			// 	this.refs.input.value = newValue;
+			// } else {
+			//	console.log('wheel calculated invalid value, and dom value (' + this.value + ') is valid, so dont do anything, newValue:', newValue);
+			// }
+			console.log('wheel calculated invalid value, so dont do anything, value:', newValue);
+		}
+
+		e.stopPropagation();
+		e.preventDefault();
+	},
+	keydown: function(e) {
+		var newValue;
+
+		switch (e.key) {
+			case 'ArrowUp':
+					newValue = this.value + this.crement;
+					this.testThenDispatch(newValue);
+				break;
+			case 'ArrowDown':
+					newValue = this.value - this.crement;
+					this.testThenDispatch(newValue);
+				break;
+			default:
+				// if its not a number then block it
+				if (e.key.length == 1) { // length test, so we allow special keys like Delete, Backspace, etc
+					if (isNaN(e.key) || e.key == ' ') {
+						console.log('blocked key:', '"' + e.key + '"');
+						e.preventDefault();
+					}
+				}
+		}
 	}
+});
+
+// REACT COMPONENTS - CONTAINER
+var NewRecordingMemo = {
+	toggleMic: () => store.dispatch(toggleOpt('mic')),
+	toggleWebcam: () => store.dispatch(toggleOpt('webcam')),
+	toggleSystemaudio: () => store.dispatch(toggleOpt('systemaudio')),
+	setFps: (value) => store.dispatch(setParam('fps', value)),
+	setSystemvideoWindow: () => store.dispatch(setParam('systemvideo', SYSTEMVIDEO_WINDOW)),
+	setSystemvideoApplication: () => store.dispatch(setParam('systemvideo', SYSTEMVIDEO_APPLICATION)),
+	setSystemvideoMonitor: () => store.dispatch(setParam('systemvideo', SYSTEMVIDEO_MONITOR))
 };
 var NewRecordingContainer = ReactRedux.connect(
 	function mapStateToProps(state, ownProps) {
@@ -350,10 +500,7 @@ var NewRecordingContainer = ReactRedux.connect(
 		}
 	},
 	function mapDispatchToProps(dispatch, ownProps) {
-		return {
-			toggle: NewRecordingContainerMethods.toggle,
-			set: NewRecordingContainerMethods.set
-		}
+		return NewRecordingMemo
 	}
 )(NewRecordingPage);
 
