@@ -250,23 +250,28 @@ function uninit() { // link4757484773732
 function makeHttps() {
 	console.log('in makeHttps');
 
-			// // trick firefox into thinking my about page is https and hostname is screencastify by doing pushState
-			// // doing setCurrentURI does not do the trick. i need to change the webNav.document.documentURI, which is done by pushState
-			var webNav = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
-			var docURI = webNav.document.documentURI;
-			console.log('docURI:', docURI);
-			webNav.setCurrentURI(Services.io.newURI('https://screencastify', null, null)); // need to setCurrentURI otherwise the pushState says operation insecure
-			content.history.pushState({key:Date.now()+''}, '', docURI.replace('about:screencastify', 'https://screencastify')); // note: for mediaSource:'screen' it MUST be https://screencastify/SOMETHING_HERE otherwise it wont work
-			webNav.setCurrentURI(Services.io.newURI(docURI, null, null)); // make it look like about uri again
+	// // trick firefox into thinking my about page is https and hostname is screencastify by doing pushState
+	// // doing setCurrentURI does not do the trick. i need to change the webNav.document.documentURI, which is done by pushState
+	var webNav = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
+	var docURI = webNav.document.documentURI;
+	console.log('docURI:', docURI, 'webNav:', webNav);
+	webNav.setCurrentURI(Services.io.newURI('https://screencastify', null, null)); // need to setCurrentURI otherwise the pushState says operation insecure
+	content.history.replaceState(null, '', docURI.replace('about:screencastify', 'https://screencastify')); // note: for mediaSource:'screen' it MUST be https://screencastify/SOMETHING_HERE otherwise it wont work
+	webNav.setCurrentURI(Services.io.newURI(docURI, null, null)); // make it look like about uri again
+	// content.setTimeout(function() {
+	// 	console.log('reverting https');
+	//
+	// 	content.history.pushState({key:Date.now()+''}, '', docURI);
+	// }
 }
 
 function revertHttps() {
-	console.log('in revertHttps');
 	var webNav = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
 	var docURI = webNav.document.documentURI;
-	console.log('docURI:', docURI);
-	webNav.setCurrentURI(Services.io.newURI(docURI.replace(/https\:\/\/screencastify\/?/, 'about:screencastify'), null, null));
-	content.window.history.pushState({key:Date.now()+''}, '', docURI.replace(/https\:\/\/screencastify\/?/, 'about:screencastify'));
+	console.log('docURI:', docURI, 'href:', content.location.href, 'webNav:', webNav);
+	webNav.setCurrentURI(Services.io.newURI(content.location.href, null, null)); // need to setCurrentURI otherwise the pushState says operation insecure
+	content.history.replaceState(null, '', content.location.href); // note: for mediaSource:'screen' it MUST be https://screencastify/SOMETHING_HERE otherwise it wont work
+	// webNav.setCurrentURI(Services.io.newURI(docURI, null, null)); // make it look like about uri again
 }
 // end - functions called by content
 

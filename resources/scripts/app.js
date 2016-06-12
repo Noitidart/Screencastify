@@ -406,14 +406,12 @@ var NewRecordingPage = React.createClass({
 		};
 
 		var revertHttps = function() {
-			return; // debug
 			gFsComm.postMessage('revertHttps', undefined, undefined, function(aArg, aComm) {
 				console.log('back from reverting https');
 			});
 		}
 
-		makeHttps(); // debug
-		// requestRtc();
+		makeHttps();
 		// end async-proc12
 
 	}
