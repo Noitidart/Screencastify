@@ -76,11 +76,19 @@ switch (gPage.name) {
 	case 'NewRecordingPage':
 			var SET_PARAM = 'SET_PARAM';
 			var TOGGLE_OPT = 'TOGGLE_OPT';
+			var UPDATE_RECSTATE = 'UPDATE_RECSTATE';
 
 			// non-action - SET_PARAM systemvideo
 			var SYSTEMVIDEO_MONITOR = 'SYSTEMVIDEO_MONITOR';
 			var SYSTEMVIDEO_WINDOW = 'SYSTEMVIDEO_WINDOW';
 			var SYSTEMVIDEO_APPLICATION = 'SYSTEMVIDEO_APPLICATION';
+
+			// non-action - UPDATE_RECORDING
+			var RECSTATE_UNINIT = 'RECSTATE_UNINIT';
+			var RECSTATE_WAITING_USER = 'RECSTATE_WAITING_USER';
+			var RECSTATE_RECORDING = 'RECSTATE_RECORDING';
+			var RECSTATE_STOPPED = 'RECSTATE_STOPPED';
+			var RECSTATE_PAUSED = 'RECSTATE_PAUSED';
 
 		break;
 }
@@ -106,6 +114,13 @@ switch (gPage.name) {
 				}
 			}
 
+			function updateRecState(state) {
+				return {
+					type: UPDATE_RECSTATE,
+					state
+				}
+			}
+
 		break;
 }
 
@@ -124,7 +139,8 @@ switch (gPage.name) {
 				params: {
 					systemvideo: enum[SYSTEMVIDEO_MONITOR, SYSTEMVIDEO_WINDOW, SYSTEMVIDEO_APPLICATION] - default:SYSTEMVIDEO_MONITOR
 					fps: int - default:10
-				}
+				},
+				recording: enum[RECSTATE_UNINIT, RECSTATE_WAITING_USER, RECSTATE_RECORDING, RECSTATE_STOPPED, RECSTATE_PAUSED]
 			};
 			*/
 
@@ -150,9 +166,19 @@ switch (gPage.name) {
 				}
 			}
 
+			function recording(state=RECSTATE_UNINIT, action) {
+				switch (action.type) {
+					case UPDATE_RECSTATE:
+						return action.state;
+					default:
+						return state;
+				}
+			}
+
 			pageReducers = {
 				params,
-				options
+				options,
+				recording
 			};
 
 		break;
@@ -196,8 +222,8 @@ var NewRecordingPage = React.createClass({
 	},
 	render() {
 		var { param } = this.props; // passed from parent component
-		var { mic, systemaudio, webcam, fps, systemvideo } = this.props; // passed from mapStateToProps
-		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication } = this.props; // passed from mapDispatchToProps
+		var { mic, systemaudio, webcam, fps, systemvideo, recording } = this.props; // passed from mapStateToProps
+		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication, updateRecStateUser, updateRecStateStop, updateRecStatePause, updateRecStateRecording } = this.props; // passed from mapDispatchToProps
 		// console.log('NewRecordingPage props:', this.props);
 
 		var captureSystemVideoItems = [
@@ -215,6 +241,33 @@ var NewRecordingPage = React.createClass({
 			{ name:formatStringFromNameCore('newrecording_webcam', 'app'), active:webcam, onClick:toggleWebcam, unsupported:true }
 		];
 
+		var controls = [];
+		switch (recording) {
+			case RECSTATE_WAITING_USER:
+					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_waitinguser', 'app'), color:'default', glyph:'hourglass', disabled:true }) );
+				break;
+			case RECSTATE_RECORDING:
+					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_pause', 'app'), color:'warning', glyph:'pause', onClick:updateRecStatePause }) );
+					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_stop', 'app'), color:'danger', glyph:'stop', onClick:updateRecStateStop }) );
+				break;
+			case RECSTATE_PAUSED:
+					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_resume', 'app'), color:'success', glyph:'play', onClick:updateRecStateRecording }) );
+					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_stop', 'app'), color:'danger', glyph:'stop', onClick:updateRecStateStop }) );
+				break;
+			case RECSTATE_STOPPED:
+					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_rerecord', 'app'), color:'success', glyph:'play', onClick:updateRecStateRecording }) );
+					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_preview', 'app'), color:'default', glyph:'eye-open' }) );
+				break;
+			case RECSTATE_UNINIT:
+					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_start', 'app'), color:'success', glyph:'play', onClick:updateRecStateRecording }) );
+				break;
+		}
+		var l = controls.length;
+		for (var i=l-1; i>0; i--) {
+			controls.splice(i, 0, ' ');
+		}
+		console.log('controls:', controls);
+
 		return React.createElement('div', { id:'NewRecordingPage', className:'container page' },
 			React.createElement('div', { className:'header clearfix' },
 				React.createElement('h3', { className:'pull-right' },
@@ -225,7 +278,7 @@ var NewRecordingPage = React.createClass({
 				)
 			),
 			React.createElement('div', { id:'controls' },
-				React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_start', 'app'), color:'success', glyph:'play' })
+				controls
 			),
 			React.createElement(BootstrapListGroup, { items:captureSystemVideoItems }),
 			React.createElement('div', { id:'options' },
@@ -560,7 +613,11 @@ var NewRecordingMemo = {
 	setFps: (value) => store.dispatch(setParam('fps', value)),
 	setSystemvideoWindow: () => store.dispatch(setParam('systemvideo', SYSTEMVIDEO_WINDOW)),
 	setSystemvideoApplication: () => store.dispatch(setParam('systemvideo', SYSTEMVIDEO_APPLICATION)),
-	setSystemvideoMonitor: () => store.dispatch(setParam('systemvideo', SYSTEMVIDEO_MONITOR))
+	setSystemvideoMonitor: () => store.dispatch(setParam('systemvideo', SYSTEMVIDEO_MONITOR)),
+	updateRecStateUser: () => store.dispatch(updateRecState(RECSTATE_WAITING_USER)),
+	updateRecStateStop: () => store.dispatch(updateRecState(RECSTATE_STOPPED)),
+	updateRecStatePause: () => store.dispatch(updateRecState(RECSTATE_PAUSED)),
+	updateRecStateRecording: () => store.dispatch(updateRecState(RECSTATE_RECORDING))
 };
 var NewRecordingContainer = ReactRedux.connect(
 	function mapStateToProps(state, ownProps) {
@@ -569,7 +626,8 @@ var NewRecordingContainer = ReactRedux.connect(
 			systemaudio: state.options.systemaudio,
 			webcam: state.options.webcam,
 			fps: state.params.fps,
-			systemvideo: state.params.systemvideo
+			systemvideo: state.params.systemvideo,
+			recording: state.recording
 		}
 	},
 	function mapDispatchToProps(dispatch, ownProps) {
