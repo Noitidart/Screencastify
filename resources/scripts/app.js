@@ -1,6 +1,6 @@
 var core;
 var gFsComm;
-const BASE_PATH = ''
+var gRecorder;
 
 function getPage() {
 	var href = location.href;
@@ -250,7 +250,8 @@ var NewRecordingPage = React.createClass({
 		var { mic, systemaudio, webcam, fps, systemvideo, recording, activeactions } = this.props; // passed from mapStateToProps
 		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication, updateRecStateUser, updateRecStateStop, updateRecStatePause, updateRecStateRecording, updateRecStateUninit, chgActionSaveQuick, chgActionSaveBrowse, chgActionUploadImgurAnon, chgActionUploadImgur, chgActionUploadGfycat, chgActionUploadYoutube, chgActionShareFacebook, chgActionShareTwitter } = this.props; // passed from mapDispatchToProps
 		// console.log('NewRecordingPage props:', this.props);
-		console.error('activations in newrecordingpage:', activeactions);
+		// console.log('activations in newrecordingpage:', activeactions);
+
 		var captureSystemVideoItems = [
 			{ name:formatStringFromNameCore('newrecording_application', 'app'), desc:formatStringFromNameCore('newrecording_application_desc', 'app'), active:(systemvideo === SYSTEMVIDEO_APPLICATION), onClick:setSystemvideoApplication },
 			{ name:formatStringFromNameCore('newrecording_monitor', 'app'), desc:formatStringFromNameCore('newrecording_monitor_desc', 'app'), active:(systemvideo === SYSTEMVIDEO_MONITOR), onClick:setSystemvideoMonitor },
@@ -272,12 +273,12 @@ var NewRecordingPage = React.createClass({
 					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_waitinguser', 'app'), color:'default', glyph:'hourglass', disabled:true }) );
 				break;
 			case RECSTATE_RECORDING:
-					// controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_pause', 'app'), color:'warning', glyph:'pause', onClick:updateRecStatePause }) ); // unsupported
-					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_stop', 'app'), color:'danger', glyph:'stop', onClick:updateRecStateStop }) );
+					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_pause', 'app'), color:'warning', glyph:'pause', onClick:this.pauseRecording }) ); // unsupported
+					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_stop', 'app'), color:'danger', glyph:'stop', onClick:this.stopRecording }) );
 				break;
 			case RECSTATE_PAUSED:
-					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_resume', 'app'), color:'success', glyph:'play', onClick:updateRecStateRecording }) );
-					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_stop', 'app'), color:'danger', glyph:'stop', onClick:updateRecStateStop }) );
+					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_resume', 'app'), color:'success', glyph:'play', onClick:this.resumeRecording }) );
+					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_stop', 'app'), color:'danger', glyph:'stop', onClick:this.stopRecording }) );
 				break;
 			case RECSTATE_STOPPED:
 					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_discard', 'app'), color:'default', glyph:'trash', onClick:updateRecStateUninit }) );
@@ -347,7 +348,7 @@ var NewRecordingPage = React.createClass({
 					})
 				),
 				React.createElement('video', { id:'video', controls:'true' },
-					React.createElement('source', { src:'http://www.w3schools.com/html/mov_bbb.ogg', type:'video/ogg' })
+					React.createElement('source', { src:gURL, type:'video/ogg' })
 				)
 			),
 			recording == RECSTATE_STOPPED ? undefined : React.createElement('div', { id:'settings' },
@@ -371,8 +372,40 @@ var NewRecordingPage = React.createClass({
 
 		//
 	},
+	pauseRecording: function() {
+		var { updateRecStatePause } = this.props
+		if (gRecorder) {
+			gRecorder.pause();
+			updateRecStatePause();
+		}
+	},
+	discardRecording: function() {
+		var { updateRecStateUninit } = this.props;
+		if (gRecorder) {
+			URL.revokeObjectURL(gURL);
+			gURL = null;
+			gBlob = null;
+			updateRecStateUninit();
+		}
+	},
+	resumeRecording: function() {
+		var { updateRecStateRecording } = this.props;
+		if (gRecorder) {
+			gRecorder.resume();
+			updateRecStateRecording();
+		}
+	},
+	stopRecording: function() {
+		if (gRecorder) {
+			gRecorder.stop();
+		}
+		else { console.warn('gRecorder is null') }
+	},
 	startRecording: function() {
-		var { mic, systemvideo } = this.props;
+		var { mic, systemvideo } = this.props; // vars
+		var { updateRecStateUser, updateRecStateUninit, updateRecStateRecording, updateRecStateStop } = this.props; // functions
+
+		updateRecStateUser();
 
 		// start async-proc12
 		var requestRtc = function() {
@@ -393,11 +426,26 @@ var NewRecordingPage = React.createClass({
 			navigator.mediaDevices.getUserMedia({ audio:mic, video:videoConstraint }).then(
 				function(stream) {
 					console.log('success');
-					revertHttps();
+					gRecorder = new MediaRecorder(stream);
+
+					gRecorder.addEventListener('dataavailable', function(e) {
+						console.log('in dataavailable!');
+						gBlob = e.data;
+						gURL = URL.createObjectURL(gBlob);
+						gRecorder = null;
+						gStream = null;
+						updateRecStateStop();
+						console.log('done dataavailable!');
+					}, false);
+
+					gRecorder.start();
+
+					updateRecStateRecording();
 				},
 				function(reason) {
 					console.error('rtc request failed, reason:', reason);
-					revertHttps();
+					alert('You disallowed permission. ' + reason.name);
+					updateRecStateUninit();
 				}
 			)
 		};

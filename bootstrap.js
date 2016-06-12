@@ -175,7 +175,12 @@ var windowListener = {
 var gRecord;
 
 function cuiClick(e) {
-	Services.wm.getMostRecentWindow('navigator:browser').gBrowser.loadOneTab('about:screencastify?recording/new', { inBackground:false });
+	var gBrowser = Services.wm.getMostRecentWindow('navigator:browser').gBrowser;
+	if (gBrowser.selectedBrowser.currentURI.spec == 'about:screencastify?recording/new') {
+		gBrowser.selectedBrowser.loadURI('about:screencastify?recording/new'); // reload the page
+	} else {
+		gBrowser.loadOneTab('about:screencastify?recording/new', { inBackground:false });
+	}
 	// if (gRecord) {
 	// 	globalRecordStop();
 	// } else {
