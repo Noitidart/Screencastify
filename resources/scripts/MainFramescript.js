@@ -80,15 +80,6 @@ var pageLoader = {
 		var contentWindow = aContentWindow;
 		console.log('ready enter');
 
-		// // trick firefox into thinking my about page is https and hostname is screencastify by doing pushState
-		// // doing setCurrentURI does not do the trick. i need to change the webNav.document.documentURI, which is done by pushState
-		// var webNav = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
-		// var docURI = webNav.document.documentURI;
-		// console.log('docURI:', docURI);
-		// webNav.setCurrentURI(Services.io.newURI('https://screencastify', null, null)); // need to setCurrentURI otherwise the pushState says operation insecure
-		// contentWindow.history.pushState({key:Date.now()+''}, '', docURI.replace('about:screencastify', 'https://screencastify')); // note: for mediaSource:'screen' it MUST be https://screencastify/SOMETHING_HERE otherwise it wont work
-		// webNav.setCurrentURI(Services.io.newURI(docURI, null, null)); // make it look like about uri again
-
 
 		gWinComm = new contentComm(contentWindow); // cross-file-link884757009
 
@@ -255,6 +246,30 @@ function uninit() { // link4757484773732
 
 }
 
+// start - functions called by content
+function makeHttps() {
+	console.log('in makeHttps');
+
+			// // trick firefox into thinking my about page is https and hostname is screencastify by doing pushState
+			// // doing setCurrentURI does not do the trick. i need to change the webNav.document.documentURI, which is done by pushState
+			var webNav = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
+			var docURI = webNav.document.documentURI;
+			console.log('docURI:', docURI);
+			webNav.setCurrentURI(Services.io.newURI('https://screencastify', null, null)); // need to setCurrentURI otherwise the pushState says operation insecure
+			content.history.pushState({key:Date.now()+''}, '', docURI.replace('about:screencastify', 'https://screencastify')); // note: for mediaSource:'screen' it MUST be https://screencastify/SOMETHING_HERE otherwise it wont work
+			webNav.setCurrentURI(Services.io.newURI(docURI, null, null)); // make it look like about uri again
+}
+
+function revertHttps() {
+	console.log('in revertHttps');
+	var webNav = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
+	var docURI = webNav.document.documentURI;
+	console.log('docURI:', docURI);
+	webNav.setCurrentURI(Services.io.newURI(docURI.replace(/https\:\/\/screencastify\/?/, 'about:screencastify'), null, null));
+	content.window.history.pushState({key:Date.now()+''}, '', docURI.replace(/https\:\/\/screencastify\/?/, 'about:screencastify'));
+}
+// end - functions called by content
+
 // start - common helper functions
 function Deferred() {
 	this.resolve = null;
@@ -339,7 +354,9 @@ var gCommScope = {
 		gBsComm.transcribeMessage(method, arg, cbResolver);
 
 		return rez;
-	}
+	},
+	makeHttps,
+	revertHttps
 };
 
 // start - CommAPI for bootstrap-framescript - bootstrap side - cross-file-link55565665464644

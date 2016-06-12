@@ -185,7 +185,7 @@ switch (gPage.name) {
 				}
 			}
 
-			function activeactions(state={ save:'browse', upload:'imguranon', share:'twitter' }, action) {
+			function activeactions(state={ save:'quick', upload:'imguranon', share:'twitter' }, action) {
 				switch (action.type) {
 					case CHANGE_ACTIVE_ACTION:
 						return Object.assign({}, state, {
@@ -282,7 +282,7 @@ var NewRecordingPage = React.createClass({
 					// controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_rerecord', 'app'), color:'success', glyph:'play', onClick:updateRecStateRecording }) );
 				break;
 			case RECSTATE_UNINIT:
-					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_start', 'app'), color:'success', glyph:'play', onClick:updateRecStateRecording }) );
+					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_start', 'app'), color:'success', glyph:'play', onClick:this.startRecording }) ); // updateRecStateRecording
 				break;
 		}
 		var l = controls.length;
@@ -315,8 +315,8 @@ var NewRecordingPage = React.createClass({
 						item: {
 							name:formatStringFromNameCore('newrecording_save', 'app'),
 							list: [
-								{ name:formatStringFromNameCore('newrecording_savequick', 'app'), glyph:'play', active:(activeactions.save=='quick'), onClick:chgActionSaveQuick },
-								{ name:formatStringFromNameCore('newrecording_savebrowse', 'app'), glyph:'stop', active:(activeactions.save=='browse'), onClick:chgActionSaveBrowse }
+								{ name:formatStringFromNameCore('newrecording_savequick', 'app'), glyph:'floppy-disk', active:(activeactions.save=='quick'), onClick:chgActionSaveQuick },
+								{ name:formatStringFromNameCore('newrecording_savebrowse', 'app'), glyph:'folder-open', active:(activeactions.save=='browse'), onClick:chgActionSaveBrowse }
 							]
 						}
 					}),
@@ -325,10 +325,10 @@ var NewRecordingPage = React.createClass({
 						item: {
 							name:formatStringFromNameCore('newrecording_upload', 'app'),
 							list: [
-								{ name:formatStringFromNameCore('newrecording_gfycat', 'app'), glyph:'play', active:(activeactions.upload=='gfycat'), onClick:chgActionUploadGfycat },
-								{ name:formatStringFromNameCore('newrecording_youtube', 'app'), glyph:'trash', active:(activeactions.upload=='youtube'), onClick:chgActionUploadYoutube },
-								{ name:formatStringFromNameCore('newrecording_imguranon', 'app'), glyph:'pause', active:(activeactions.upload=='imguranon'), onClick:chgActionUploadImgurAnon },
-								{ name:formatStringFromNameCore('newrecording_imgur', 'app'), glyph:'stop', active:(activeactions.upload=='imgur'), onClick:chgActionUploadImgur },
+								{ name:formatStringFromNameCore('newrecording_gfycat', 'app'), glyph:'flash', active:(activeactions.upload=='gfycat'), onClick:chgActionUploadGfycat },
+								{ name:formatStringFromNameCore('newrecording_youtube', 'app'), glyph:'globe', active:(activeactions.upload=='youtube'), onClick:chgActionUploadYoutube },
+								{ name:formatStringFromNameCore('newrecording_imguranon', 'app'), glyph:'cutlery', active:(activeactions.upload=='imguranon'), onClick:chgActionUploadImgurAnon },
+								{ name:formatStringFromNameCore('newrecording_imgur', 'app'), glyph:'usd', active:(activeactions.upload=='imgur'), onClick:chgActionUploadImgur },
 							]
 						}
 					}),
@@ -337,8 +337,8 @@ var NewRecordingPage = React.createClass({
 						item: {
 							name:formatStringFromNameCore('newrecording_share', 'app'),
 							list: [
-								{ name:formatStringFromNameCore('newrecording_facebook', 'app'), glyph:'stop', active:(activeactions.share=='facebook'), onClick:chgActionShareFacebook },
-								{ name:formatStringFromNameCore('newrecording_twitter', 'app'), glyph:'play', active:(activeactions.share=='twitter'), onClick:chgActionShareTwitter }
+								{ name:formatStringFromNameCore('newrecording_facebook', 'app'), glyph:'tower', active:(activeactions.share=='facebook'), onClick:chgActionShareFacebook },
+								{ name:formatStringFromNameCore('newrecording_twitter', 'app'), glyph:'phone-alt', active:(activeactions.share=='twitter'), onClick:chgActionShareTwitter }
 							]
 						}
 					})
@@ -367,6 +367,55 @@ var NewRecordingPage = React.createClass({
 		);
 
 		//
+	},
+	startRecording: function() {
+		var { mic, systemvideo } = this.props;
+		// start async-proc12
+		var makeHttps = function() {
+			gFsComm.postMessage('makeHttps', undefined, undefined, function(aArg, aComm) {
+				console.log('back form making https');
+				setTimeout(requestRtc, 1000);
+			});
+		};
+
+		var requestRtc = function() {
+
+			var videoConstraint;
+			switch (systemvideo) {
+				case SYSTEMVIDEO_WINDOW:
+						videoConstraint = { mediaSource:'window' };
+					break;
+				case SYSTEMVIDEO_APPLICATION:
+						videoConstraint = { mediaSource:'application' };
+					break;
+				case SYSTEMVIDEO_MONITOR:
+						videoConstraint = { mediaSource:'screen' };
+					break;
+			}
+
+			navigator.mediaDevices.getUserMedia({ audio:mic, video:videoConstraint }).then(
+				function(stream) {
+					console.log('success');
+					revertHttps();
+				},
+				function(reason) {
+					console.error('rtc request failed, reason:', reason);
+					revertHttps();
+				}
+			)
+		};
+
+		var revertHttps = function() {
+			return; // debug
+			gFsComm.postMessage('revertHttps', undefined, undefined, function(aArg, aComm) {
+				console.log('back from reverting https');
+			});
+		}
+
+		makeHttps(); // debug
+		// requestRtc();
+		// end async-proc12
+
 	}
 });
 
