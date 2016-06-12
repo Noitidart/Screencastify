@@ -402,7 +402,7 @@ var NewRecordingPage = React.createClass({
 		else { console.warn('gRecorder is null') }
 	},
 	startRecording: function() {
-		var { mic, systemvideo } = this.props; // vars
+		var { mic, systemvideo, fps } = this.props; // vars
 		var { updateRecStateUser, updateRecStateUninit, updateRecStateRecording, updateRecStateStop } = this.props; // functions
 
 		updateRecStateUser();
@@ -422,6 +422,9 @@ var NewRecordingPage = React.createClass({
 						videoConstraint = { mediaSource:'screen' };
 					break;
 			}
+			videoConstraint.frameRate = { ideal:fps, max:fps }
+
+			// alert(JSON.stringify(videoConstraint));
 
 			navigator.mediaDevices.getUserMedia({ audio:mic, video:videoConstraint }).then(
 				function(stream) {
