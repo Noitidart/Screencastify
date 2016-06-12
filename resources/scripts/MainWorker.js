@@ -49,6 +49,16 @@ function getStore(id) {
 }
 
 // start - functions called by bootstrap
+function processAction(aArg, aComm) {
+	var { serviceid, url } = aArg;
+
+	console.log('worker - processAction - aArg:', aArg);
+
+	// start async-proc9
+	
+	// end async-proc9
+}
+
 function globalRecordNew(aArg, aComm) {
 	var id = createStore();
 	gBsComm.postMessage('globalRecordStart', { id });

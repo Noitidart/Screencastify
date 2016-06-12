@@ -39,6 +39,8 @@ function init() {
 		console.log('core:', aCore);
 		core = aCore;
 
+		window.addEventListener('unload', uninit, false);
+
 		// // update favicon as the setCurrentURI and pushState trick ruins it
 		// var link = document.createElement('link');
 	    // link.type = 'image/x-icon';
@@ -64,7 +66,11 @@ function init() {
 }
 
 function uninit() {
-
+	if (gURL) {
+		URL.revokeObjectURL(gURL);
+		console.error('revoked url of:', gURL);
+		gURL = null;
+	}
 }
 
 // start - functions called by framescript
@@ -125,11 +131,11 @@ switch (gPage.name) {
 				}
 			}
 
-			function changeActiveAction(group, dataid) {
+			function changeActiveAction(group, serviceid) {
 				return {
 					type: CHANGE_ACTIVE_ACTION,
 					group,
-					dataid
+					serviceid
 				}
 			}
 
@@ -153,7 +159,7 @@ switch (gPage.name) {
 					fps: int - default:10
 				},
 				recording: enum[RECSTATE_UNINIT, RECSTATE_WAITING_USER, RECSTATE_RECORDING, RECSTATE_STOPPED, RECSTATE_PAUSED],
-				activeactions: {group:dataid} // for valid group and dataid see my rendering of NewRecordingPage, thats where this is decided, in each BootstrapSplitButtonDropdown
+				activeactions: {group:serviceid} // for valid group and serviceid see my rendering of NewRecordingPage, thats where this is decided, in each BootstrapSplitButtonDropdown
 			};
 			*/
 
@@ -192,7 +198,7 @@ switch (gPage.name) {
 				switch (action.type) {
 					case CHANGE_ACTIVE_ACTION:
 						return Object.assign({}, state, {
-							[action.group]: action.dataid
+							[action.group]: action.serviceid
 						});
 					default:
 						return state;
@@ -466,22 +472,58 @@ var NewRecordingPage = React.createClass({
 		var { activeactions } = this.props;
 		var group = 'save';
 		var serviceid = activeactions[group];
-		alert(serviceid);
+
+		processAction( { serviceid } );
 	},
 	upload: function() {
 		var { activeactions } = this.props;
 		var group = 'upload';
 		var serviceid = activeactions[group];
-		alert(serviceid);
+
+		processAction( { serviceid } );
 	},
 	share: function() {
 		var { activeactions } = this.props;
 		var group = 'share';
 		var serviceid = activeactions[group];
-		alert(serviceid);
+
+		processAction( { serviceid } );
 	}
 	// end - action handlers
 });
+
+
+function processAction(aArg) {
+	// sends to worker for processing
+
+
+	var fr = new FileReader();
+	fr.onload = function() {
+		aArg.arrbuf = this.result;
+		aArg.mimetype = gBlob.type;
+
+		callInWorker('processAction', aArg, function() {
+			console.log('back in window after calling processAction');
+		});
+	};
+	fr.readAsArrayBuffer(gBlob);
+
+
+
+}
+
+function callInWorker(method, arg, aCallback) {
+	// for use by this scope - window scope
+	gFsComm.postMessage('callInBootstrap', {
+		method: 'callInWorker',
+		arg: {
+			method,
+			arg,
+			wait: aCallback ? true : false
+		},
+		wait: aCallback ? true : false
+	}, arg.arrbuf ? [arg.arrbuf] : undefined, aCallback);
+}
 
 var ManageRecordingPage = React.createClass({
 	componentDidMount() {
