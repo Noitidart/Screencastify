@@ -139,15 +139,58 @@ function buildPathForScreencast(path, rec, unsafe_filename) {
 	return OS.Path.join( path, safedForPlatFS(unsafe_filename, {repStr:'.'}) ) + '.' + rec.mimetype.substr(rec.mimetype.indexOf('/')+1);
 }
 
-function action_browse(rec) {
+function action_browse(rec, aCallback) {
 	// action for save-browse
 
 	// start async-proc0003
-	var gsd = function() {
-		getSystemDirectory('Videos').then();
+	var browse = function() {
+		var file_ext = rec.mimetype.substr(rec.mimetype.indexOf('/')+1);
+		gBsComm.postMessage(
+			'browseFile',
+			{
+				aDialogTitle: formatStringFromName('dialog_save_title', 'main'),
+				aOptions: {
+					mode: 'modeSave',
+					filters: [formatStringFromName(file_ext, 'main'), '*.' + file_ext],
+					async: true,
+					win: 'navigator:browser',
+					defaultString: safedForPlatFS(autogenScreencastFileName(rec.time), {repStr:'.'})
+				}
+			},
+			undefined,
+			function(aArg, aComm) {
+				var path_with_safe_filename = aArg;
+				if (!path_with_safe_filename) {
+					aCallback({
+						status: false,
+						reason: 'You clicked cancel'
+					});
+				} else {
+					if (!path_with_safe_filename.toLowerCase().endsWith('.' + file_ext)) {
+						path_with_safe_filename += '.' + file_ext;
+					}
+					write(path_with_safe_filename);
+				}
+			}
+		);
 	};
 
+	var write = function(path_with_safe_filename) {
+		try {
+			OS.File.writeAtomic( path_with_safe_filename, new Uint8Array(rec.arrbuf), {encoding:'utf-8'} );
+			aCallback({
+				ok: true
+			});
+		} catch (OSFileError) {
+			console.error('OSFileError:', OSFileError);
+			aCallback({
+				ok: false,
+				reason: 'Failed saving to disk at path "' + buildPathForScreencast(path, rec) + '"'
+			});
+		}
+	};
 
+	browse();
 	// end async-proc0003
 }
 

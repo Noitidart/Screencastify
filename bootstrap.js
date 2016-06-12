@@ -407,6 +407,99 @@ function globalRecordStart(id) {
 // end - functions called by worker
 
 //start - common helper functions
+// rev2 - not yet commited to gist.github
+function browseFile(aArg, aComm) {
+	var { aDialogTitle, aOptions } = aArg
+	if (!aOptions) { aOptions={} }
+
+	// uses xpcom file browser and returns path to file selected
+	// returns
+		// filename
+		// if aOptions.returnDetails is true, then it returns object with fields:
+		//	{
+		//		filepath: string,
+		//		replace: bool, // only set if mode is modeSave
+		//	}
+
+	var cOptionsDefaults = {
+		mode: 'modeOpen', // modeSave, modeGetFolder,
+		filters: undefined, // else an array. in sets of two. so one filter would be ['PNG', '*.png'] or two filters woul be ['PNG', '*.png', 'All Files', '*']
+		startDirPlatPath: undefined, // string - platform path to dir the dialog should start in
+		returnDetails: false,
+		async: false, // if set to true, then it wont block main thread while its open, and it will also return a promise
+		win: undefined, // null for no parentWin, string for what you want passed to getMostRecentWindow, or a window object. NEGATIVE is special for NativeShot, it is negative iMon
+		defaultString: undefined
+	}
+
+	validateOptionsObj(aOptions, cOptionsDefaults);
+
+	var fp = Cc['@mozilla.org/filepicker;1'].createInstance(Ci.nsIFilePicker);
+
+	var parentWin;
+	if (aOptions.win === undefined) {
+		parentWin = null;
+	} else if (typeof(aOptions.win) == 'number') {
+		// sepcial for nativeshot
+		parentWin = colMon[Math.abs(aOptions.win)].E.DOMWindow;
+	} else if (aOptions.win === null || typeof(aOptions.win) == 'string') {
+		parentWin = Services.wm.getMostRecentWindow(aOptions.win);
+	} else {
+		parentWin = aOptions.win; // they specified a window probably
+	}
+	fp.init(parentWin, aDialogTitle, Ci.nsIFilePicker[aOptions.mode]);
+
+	if (aOptions.filters) {
+		for (var i=0; i<aOptions.filters.length; i=i+2) {
+			fp.appendFilter(aOptions.filters[i], aOptions.filters[i+1]);
+		}
+	}
+
+	if (aOptions.startDirPlatPath) {
+		fp.displayDirectory = new nsIFile(aOptions.startDirPlatPath);
+	}
+
+	var fpDoneCallback = function(rv) {
+		var retFP;
+		if (rv == Ci.nsIFilePicker.returnOK || rv == Ci.nsIFilePicker.returnReplace) {
+
+			if (aOptions.returnDetails) {
+				var cBrowsedDetails = {
+					filepath: fp.file.path
+				};
+
+				if (aOptions.mode == 'modeSave') {
+					cBrowsedDetails.replace = (rv == Ci.nsIFilePicker.returnReplace);
+				}
+
+				retFP = cBrowsedDetails;
+			} else {
+				retFP = fp.file.path;
+			}
+
+		}// else { // cancelled	}
+		if (aOptions.async) {
+			console.error('async resolving');
+			mainDeferred_browseFile.resolve(retFP);
+		} else {
+			return retFP;
+		}
+	}
+
+	if (aOptions.defaultString) {
+		fp.defaultString = aOptions.defaultString;
+	}
+
+	if (aOptions.async) {
+		var mainDeferred_browseFile = new Deferred();
+		fp.open({
+			done: fpDoneCallback
+		});
+		return mainDeferred_browseFile.promise;
+	} else {
+		return fpDoneCallback(fp.show());
+	}
+}
+
 function getSystemDirectory_bootstrap(type) {
 	// progrmatic helper for getSystemDirectory in MainWorker - devuser should NEVER call this himself
 	return Services.dirsvc.get(type, Ci.nsIFile).path;
