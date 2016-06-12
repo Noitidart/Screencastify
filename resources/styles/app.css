@@ -139,12 +139,19 @@ button {
     text-align: center;
 }
 
-#NewRecordingPage button small {
-    font-size: 0.8em;
-    vertical-align: -moz-calc(0.1em);
+#NewRecordingPage:not(.recording_uninit) #settings {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+#NewRecordingPage:not(.recording_uninit) #settings_content {
+    pointer-events: none;
 }
 
-#NewRecordingPage button small {
-    font-size: 0.8em;
-    vertical-align: -moz-calc(0.1em);
+#NewRecordingPage #video {
+    width: 100%;
+}
+
+#NewRecordingPage #actions {
+    text-align: center;
+    margin-bottom: 5px;
 }

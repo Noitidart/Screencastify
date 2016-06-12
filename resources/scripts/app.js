@@ -223,7 +223,7 @@ var NewRecordingPage = React.createClass({
 	render() {
 		var { param } = this.props; // passed from parent component
 		var { mic, systemaudio, webcam, fps, systemvideo, recording } = this.props; // passed from mapStateToProps
-		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication, updateRecStateUser, updateRecStateStop, updateRecStatePause, updateRecStateRecording } = this.props; // passed from mapDispatchToProps
+		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication, updateRecStateUser, updateRecStateStop, updateRecStatePause, updateRecStateRecording, updateRecStateUninit } = this.props; // passed from mapDispatchToProps
 		// console.log('NewRecordingPage props:', this.props);
 
 		var captureSystemVideoItems = [
@@ -247,7 +247,7 @@ var NewRecordingPage = React.createClass({
 					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_waitinguser', 'app'), color:'default', glyph:'hourglass', disabled:true }) );
 				break;
 			case RECSTATE_RECORDING:
-					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_pause', 'app'), color:'warning', glyph:'pause', onClick:updateRecStatePause }) );
+					// controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_pause', 'app'), color:'warning', glyph:'pause', onClick:updateRecStatePause }) ); // unsupported
 					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_stop', 'app'), color:'danger', glyph:'stop', onClick:updateRecStateStop }) );
 				break;
 			case RECSTATE_PAUSED:
@@ -255,8 +255,9 @@ var NewRecordingPage = React.createClass({
 					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_stop', 'app'), color:'danger', glyph:'stop', onClick:updateRecStateStop }) );
 				break;
 			case RECSTATE_STOPPED:
-					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_rerecord', 'app'), color:'success', glyph:'play', onClick:updateRecStateRecording }) );
-					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_preview', 'app'), color:'default', glyph:'eye-open' }) );
+					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_discard', 'app'), color:'default', glyph:'trash', onClick:updateRecStateUninit }) );
+					// controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_preview', 'app'), color:'primary', glyph:'eye-open' }) );
+					// controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_rerecord', 'app'), color:'success', glyph:'play', onClick:updateRecStateRecording }) );
 				break;
 			case RECSTATE_UNINIT:
 					controls.push( React.createElement(BootstrapButton, { name:formatStringFromNameCore('newrecording_start', 'app'), color:'success', glyph:'play', onClick:updateRecStateRecording }) );
@@ -268,7 +269,13 @@ var NewRecordingPage = React.createClass({
 		}
 		console.log('controls:', controls);
 
-		return React.createElement('div', { id:'NewRecordingPage', className:'container page' },
+		var mainClassName = '';
+		if (recording == RECSTATE_UNINIT) {
+			mainClassName += ' recording_uninit';
+		} else if (recording == RECSTATE_STOPPED) {
+			mainClassName += ' recording_stopped'; // stopped, so show preview
+		}
+		return React.createElement('div', { id:'NewRecordingPage', className:'container page' + mainClassName },
 			React.createElement('div', { className:'header clearfix' },
 				React.createElement('h3', { className:'pull-right' },
 					formatStringFromNameCore('addon_name', 'main')
@@ -280,16 +287,32 @@ var NewRecordingPage = React.createClass({
 			React.createElement('div', { id:'controls' },
 				controls
 			),
-			React.createElement(BootstrapListGroup, { items:captureSystemVideoItems }),
-			React.createElement('div', { id:'options' },
-				React.createElement(BootstrapButtonGroup, { items:captureAudioItems }),
-				React.createElement(BootstrapButtonGroup, { items:captureOtherVideoItems }),
-				React.createElement('div', undefined,
-					React.createElement('div', { className:'input-group input-group-lg' },
-						React.createElement('label', { className:'input-group-addon', htmlFor:'fps' },
-							formatStringFromNameCore('newrecording_fps', 'app')
-						),
-						React.createElement(InputNumber, { id:'fps', className:'form-control', defaultValue:fps, min:1, max:60, dispatcher:setFps })
+			recording != RECSTATE_STOPPED ? undefined : React.createElement('div', { id:'preview' },
+				React.createElement('div', { id:'actions' },
+					React.createElement(BootstrapButton, { name:'Save to File' }),
+					' ',
+					React.createElement(BootstrapButton, { name:'Upload to Cloud' }),
+					' ',
+					React.createElement(BootstrapButton, { name:'Share to Social Media' })
+				),
+				React.createElement('video', { id:'video', controls:'true' },
+					React.createElement('source', { src:'http://www.w3schools.com/html/mov_bbb.ogg', type:'video/ogg' })
+				)
+			),
+			recording == RECSTATE_STOPPED ? undefined : React.createElement('div', { id:'settings' },
+				React.createElement('div', { id:'settings_content' },
+					React.createElement(BootstrapListGroup, { items:captureSystemVideoItems }),
+					React.createElement('div', { id:'options' },
+						React.createElement(BootstrapButtonGroup, { items:captureAudioItems }),
+						React.createElement(BootstrapButtonGroup, { items:captureOtherVideoItems }),
+						React.createElement('div', undefined,
+							React.createElement('div', { className:'input-group input-group-lg' },
+								React.createElement('label', { className:'input-group-addon', htmlFor:'fps' },
+									formatStringFromNameCore('newrecording_fps', 'app')
+								),
+								React.createElement(InputNumber, { id:'fps', className:'form-control', defaultValue:fps, min:1, max:60, dispatcher:setFps })
+							)
+						)
 					)
 				)
 			)
@@ -314,12 +337,12 @@ var ManageRecordingPage = React.createClass({
 	}
 });
 
-const BootstrapButton = ({ color='default', glyph, name, disabled, active, unsupported, onClick }) => (
+const BootstrapButton = ({ className, color='default', glyph, name, disabled, active, unsupported, onClick }) => (
 	// active,disabled,unsupported is optional, can be undefined, else bool
 	// color, glyph, name are str
 	// name is also optional, can be undefined
 	// onClick is a function, optional
-	React.createElement('button', { type:'button', className:'btn btn-'+color+' btn-lg' + (active ? ' active' : ''), title:(unsupported ? formatStringFromNameCore('newrecording_unsupported_tooltip', 'app') : undefined), disabled:(unsupported || disabled ? true : undefined), onClick },
+	React.createElement('button', { type:'button', className:'btn btn-'+color+' btn-lg' + (active ? ' active' : '') + (className ? ' ' + className : ''), title:(unsupported ? formatStringFromNameCore('newrecording_unsupported_tooltip', 'app') : undefined), disabled:(unsupported || disabled ? true : undefined), onClick },
 		!glyph ? undefined : React.createElement('span', { className:'glyphicon glyphicon-'+glyph, 'aria-hidden':'true' }),
 		(glyph && name) ? ' ' : undefined,
 		name // can be undefined
@@ -617,7 +640,8 @@ var NewRecordingMemo = {
 	updateRecStateUser: () => store.dispatch(updateRecState(RECSTATE_WAITING_USER)),
 	updateRecStateStop: () => store.dispatch(updateRecState(RECSTATE_STOPPED)),
 	updateRecStatePause: () => store.dispatch(updateRecState(RECSTATE_PAUSED)),
-	updateRecStateRecording: () => store.dispatch(updateRecState(RECSTATE_RECORDING))
+	updateRecStateRecording: () => store.dispatch(updateRecState(RECSTATE_RECORDING)),
+	updateRecStateUninit: () => store.dispatch(updateRecState(RECSTATE_UNINIT))
 };
 var NewRecordingContainer = ReactRedux.connect(
 	function mapStateToProps(state, ownProps) {
