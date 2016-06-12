@@ -45,6 +45,9 @@ function init() {
 	    // link.rel = 'shortcut icon';
 	    // link.href = core.addon.path.images + 'icon-color16.png';
 	    // document.getElementsByTagName('head')[0].appendChild(link);
+		var link = document.querySelector('link');
+		link.setAttribute('href', 'blah');
+		link.setAttribute('href', core.addon.path.images + 'icon-color16.png');
 
 		console.log('ok rendering react');
 
@@ -370,14 +373,8 @@ var NewRecordingPage = React.createClass({
 	},
 	startRecording: function() {
 		var { mic, systemvideo } = this.props;
-		// start async-proc12
-		var makeHttps = function() {
-			gFsComm.postMessage('makeHttps', undefined, undefined, function(aArg, aComm) {
-				console.log('back form making https');
-				setTimeout(requestRtc, 1000);
-			});
-		};
 
+		// start async-proc12
 		var requestRtc = function() {
 
 			var videoConstraint;
@@ -405,13 +402,7 @@ var NewRecordingPage = React.createClass({
 			)
 		};
 
-		var revertHttps = function() {
-			gFsComm.postMessage('revertHttps', undefined, undefined, function(aArg, aComm) {
-				console.log('back from reverting https');
-			});
-		}
-
-		makeHttps();
+		requestRtc();
 		// end async-proc12
 
 	}
@@ -462,7 +453,7 @@ const BootstrapListGroup = ({ items }) => (
 	// items should be array of objects like this:
 	// { name:str, desc:str, active:bool, disabled:bool, onClick:func } // active is optional, can be undefined // desc is optional, can be undefined // disabled is optional, can be undefined
 	React.createElement('div', { className:'list-group' },
-		items.map(item => React.createElement('a', { href:'#', onClick:item.onClick, className:'list-group-item' + (!item.active ? '' : ' active'), disabled:item.disabled },
+		items.map(item => React.createElement('a', { href:'javascript:void(0)', onClick:item.onClick, className:'list-group-item' + (!item.active ? '' : ' active'), disabled:item.disabled },
 			React.createElement('h4', {},
 				item.name
 			),
@@ -507,7 +498,7 @@ var BootstrapSplitButtonDropdown = React.createClass({
 			React.createElement('ul', { ref:'ul', className:'dropdown-menu dropdown-menu-right' },
 				item.list.map( el =>
 					React.createElement('li', { className:(el.active ? 'active' : undefined), onClick:el.onClick },
-						React.createElement('a', { href:'#' },
+						React.createElement('a', { href:'javascript:void(0)' },
 							!el.glyph ? undefined : React.createElement('span', { className:'glyphicon glyphicon-'+el.glyph, 'aria-hidden':'true' }),
 							(el.glyph && el.name) ? ' ' : undefined,
 							el.name

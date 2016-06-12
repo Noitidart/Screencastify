@@ -114,8 +114,8 @@ button {
 
 
 /* start NewRecordingPage */
-#NewRecordingPage {
-
+#NewRecordingPage a {
+    outline: 0;
 }
 
 #NewRecordingPage .header h3 {
