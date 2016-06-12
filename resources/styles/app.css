@@ -112,6 +112,10 @@ button {
     cursor: not-allowed;
 }
 
+.dropdown-menu {
+    font-size: 1.3em;
+    min-width: 100%;
+}
 
 /* start NewRecordingPage */
 #NewRecordingPage a {

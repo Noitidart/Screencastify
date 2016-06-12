@@ -318,6 +318,7 @@ var NewRecordingPage = React.createClass({
 					React.createElement(BootstrapSplitButtonDropdown, {
 						item: {
 							name:formatStringFromNameCore('newrecording_save', 'app'),
+							onClick: this.save,
 							list: [
 								{ name:formatStringFromNameCore('newrecording_savequick', 'app'), glyph:'floppy-disk', active:(activeactions.save=='quick'), onClick:chgActionSaveQuick },
 								{ name:formatStringFromNameCore('newrecording_savebrowse', 'app'), glyph:'folder-open', active:(activeactions.save=='browse'), onClick:chgActionSaveBrowse }
@@ -328,6 +329,7 @@ var NewRecordingPage = React.createClass({
 					React.createElement(BootstrapSplitButtonDropdown, {
 						item: {
 							name:formatStringFromNameCore('newrecording_upload', 'app'),
+							onClick: this.upload,
 							list: [
 								{ name:formatStringFromNameCore('newrecording_gfycat', 'app'), glyph:'flash', active:(activeactions.upload=='gfycat'), onClick:chgActionUploadGfycat },
 								{ name:formatStringFromNameCore('newrecording_youtube', 'app'), glyph:'globe', active:(activeactions.upload=='youtube'), onClick:chgActionUploadYoutube },
@@ -340,6 +342,7 @@ var NewRecordingPage = React.createClass({
 					React.createElement(BootstrapSplitButtonDropdown, {
 						item: {
 							name:formatStringFromNameCore('newrecording_share', 'app'),
+							onClick: this.share,
 							list: [
 								{ name:formatStringFromNameCore('newrecording_facebook', 'app'), glyph:'tower', active:(activeactions.share=='facebook'), onClick:chgActionShareFacebook },
 								{ name:formatStringFromNameCore('newrecording_twitter', 'app'), glyph:'phone-alt', active:(activeactions.share=='twitter'), onClick:chgActionShareTwitter }
@@ -456,7 +459,28 @@ var NewRecordingPage = React.createClass({
 		requestRtc();
 		// end async-proc12
 
+	},
+	// start - action handlers
+	// it figures out the service from the store
+	save: function() {
+		var { activeactions } = this.props;
+		var group = 'save';
+		var serviceid = activeactions[group];
+		alert(serviceid);
+	},
+	upload: function() {
+		var { activeactions } = this.props;
+		var group = 'upload';
+		var serviceid = activeactions[group];
+		alert(serviceid);
+	},
+	share: function() {
+		var { activeactions } = this.props;
+		var group = 'share';
+		var serviceid = activeactions[group];
+		alert(serviceid);
 	}
+	// end - action handlers
 });
 
 var ManageRecordingPage = React.createClass({
@@ -546,7 +570,7 @@ var BootstrapSplitButtonDropdown = React.createClass({
 					'Toggle Dropdown'
 				)
 			),
-			React.createElement('ul', { ref:'ul', className:'dropdown-menu dropdown-menu-right' },
+			React.createElement('ul', { ref:'ul', className:'dropdown-menu' },
 				item.list.map( el =>
 					React.createElement('li', { className:(el.active ? 'active' : undefined), onClick:el.onClick },
 						React.createElement('a', { href:'javascript:void(0)' },
