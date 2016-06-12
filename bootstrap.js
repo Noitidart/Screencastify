@@ -188,6 +188,23 @@ function cuiClick(e) {
 	// }
 }
 
+function quickSaveDirDefaultValue() {
+	// videos/movies folder - on error gives desktopDir
+	try {
+		return Services.dirsvc.get('XDGVids', Ci.nsIFile).path; // works on linux
+	} catch (ex) {
+		try {
+			return Services.dirsvc.get('Vids', Ci.nsIFile).path; // works on windows
+		} catch (ex) {
+			try {
+				return Services.dirsvc.get('Mov', Ci.nsIFile).path; // works on mac
+			} catch (ex) {
+				return OS.Constants.Path.desktopDir;
+			}
+		}
+	}
+}
+
 var gFHR = []; // holds all currently alive FHR instances. keeps track of FHR's so it destroys them on shutdown. if devuser did not handle destroying it
 var gFHR_id = 0;
 function FHR() {
@@ -390,6 +407,10 @@ function globalRecordStart(id) {
 // end - functions called by worker
 
 //start - common helper functions
+function getSystemDirectory_bootstrap(type) {
+	// progrmatic helper for getSystemDirectory in MainWorker - devuser should NEVER call this himself
+	return Services.dirsvc.get(type, Ci.nsIFile).path;
+}
 function getDownloadsDir() {
 	var deferredMain_getDownloadsDir = new Deferred();
 	try {

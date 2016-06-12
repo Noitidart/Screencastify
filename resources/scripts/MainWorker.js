@@ -11,6 +11,9 @@ function init(objCore) {
 
 	core = objCore;
 
+	core.os.name = OS.Constants.Sys.Name.toLowerCase();
+	core.os.mname = core.os.toolkit.indexOf('gtk') == 0 ? 'gtk' : core.os.name; // mname stands for modified-name
+
 	core.addon.path.storage = OS.Path.join(OS.Constants.Path.profileDir, 'jetpack', core.addon.id, 'simple-storage');
 
 	// load all localization pacakages
@@ -26,6 +29,15 @@ function init(objCore) {
 // Start - Addon Functionality
 self.onclose = function() {
 	console.log('ok ready to terminate');
+	switch (core.os.mname) {
+		case 'android':
+
+				if (OSStuff.jenv) {
+					JNI.UnloadClasses(OSStuff.jenv);
+				}
+
+			break;
+	}
 }
 
 function bootstrapTimeout(milliseconds) {
@@ -48,15 +60,112 @@ function getStore(id) {
 	return gDataStore[id];
 }
 
+function autogenScreencastFileName(aDateGettime) {
+	// no extension generated
+
+	// Screencast - Mmm DD, YYYY - hh:mm AM
+	// Screencast - Feb 25, 2016 - 5:04 AM
+
+	var nowDate = new Date();
+	if (aDateGettime) {
+		nowDate = new Date(aDateGettime);
+	}
+
+	var Mmm = formatStringFromName('month.' + (nowDate.getMonth() + 1) + '.Mmm', 'chrome://global/locale/dateFormat.properties');
+	var YYYY = nowDate.getFullYear();
+	var DD = nowDate.getDate();
+
+	var mm = nowDate.getMinutes();
+	var hh = nowDate.getHours(); // 0 - 23
+	var AM;
+	if (hh < 12) {
+		AM = 'AM';
+	} else {
+		AM = 'PM';
+	}
+
+	// adjust hh to 12 hour
+	if (hh === 0) {
+		hh = 12;
+	} else if (hh > 12) {
+		hh -= 12;
+	}
+
+	// prefix mm with 0
+	if (mm < 10) {
+		mm = '0' + mm;
+	}
+
+	return [formatStringFromName('screencast', 'main'), ' - ', Mmm, ' ', DD, ', ', YYYY, ' ', hh, ':', mm, ' ', AM].join('');
+}
+
+function action_quick(rec, aCallback) {
+	// action for save-quick
+	console.log('worker - action_quick');
+
+	// start async-proc3933
+	var gsd = function() {
+		console.log('worker - action_quick - gsd');
+		getSystemDirectory('Videos').then(write);
+	};
+
+	var write = function(path) {
+		console.log('worker - action_quick - write');
+		try {
+			OS.File.writeAtomic( buildPathForScreencast(path, rec), new Uint8Array(rec.arrbuf), {encoding:'utf-8'} );
+			aCallback({
+				ok: true
+			});
+		} catch (OSFileError) {
+			console.error('OSFileError:', OSFileError);
+			aCallback({
+				ok: false,
+				reason: 'Failed saving to disk at path "' + buildPathForScreencast(path, rec) + '"'
+			});
+		}
+	};
+
+	gsd();
+	// end async-proc3933
+}
+
+function buildPathForScreencast(path, rec, unsafe_filename) {
+	// unsafe_filename is either a string, or undefined. if undefined, rec.time is used with autogenScreencastFileName
+	// after unsafe_filename is a string, it is safedForPlatFS
+	if (!unsafe_filename) {
+		unsafe_filename = autogenScreencastFileName(unsafe_filename);
+	}
+
+	return OS.Path.join( path, safedForPlatFS(unsafe_filename, {repStr:'.'}) ) + '.' + rec.mimetype.substr(rec.mimetype.indexOf('/')+1);
+}
+
+function action_browse(rec) {
+	// action for save-browse
+
+	// start async-proc0003
+	var gsd = function() {
+		getSystemDirectory('Videos').then();
+	};
+
+
+	// end async-proc0003
+}
+
 // start - functions called by bootstrap
 function processAction(aArg, aComm) {
-	var { serviceid, url } = aArg;
+	var { serviceid, arrbuf, time, mimetype } = aArg;
+
+	var deferredMain_processAction = new Deferred();
 
 	console.log('worker - processAction - aArg:', aArg);
+	var rec = { arrbuf, time, mimetype };
 
-	// start async-proc9
-	
-	// end async-proc9
+	gWorker['action_' + serviceid](rec, function(status) {
+		console.log('worker - processAction complete, status:', status);
+		deferredMain_processAction.resolve(status);
+	});
+
+	return deferredMain_processAction.promise;
 }
 
 function globalRecordNew(aArg, aComm) {
@@ -75,7 +184,107 @@ function globalRecordComplete(aArg, aComm) {
 // End - Addon Functionality
 
 // start - common helper functions
-// rev3 - _ff-addon-snippet-safedForPlatFS.js - https://gist.github.com/Noitidart/e6dbbe47fbacc06eb4ca
+var _cache_getSystemDirectory = {};
+function getSystemDirectory(type) {
+	// main entry point that should be used for getting system path. worker, botostrap, etc should call here
+	// for each type, guranteed to return a string
+
+	// resolves to string
+	// type - string - enum: Videos
+	var deferredMain_getSystemDirectory = new Deferred();
+
+	if (_cache_getSystemDirectory[type]) {
+		deferredMain_getSystemDirectory.resolve(_cache_getSystemDirectory[type]);
+	} else {
+		const TYPE_ROUTE_BOOTSTRAP = 0;
+		const TYPE_ROUTE_ANDROID = 1;
+		const TYPE_ROUTE_OS_CONST = 2;
+		switch (type) {
+			case 'Videos':
+
+					var platform = {
+						winnt: { type:'Vids', route:TYPE_ROUTE_BOOTSTRAP },
+						darwin: { type:'Mov', route:TYPE_ROUTE_BOOTSTRAP },
+						gtk: { type:'XDGVids', route:TYPE_ROUTE_BOOTSTRAP },
+						android: { type:'DIRECTORY_MOVIES', route:TYPE_ROUTE_ANDROID }
+					};
+
+				break;
+		}
+
+		var { type, route } = platform[core.os.mname];
+
+		switch (route) {
+			case TYPE_ROUTE_BOOTSTRAP:
+					gBsComm.postMessage('getSystemDirectory_bootstrap', type, undefined, function(path) {
+						deferredMain_getSystemDirectory.resolve(path);
+					});
+				break;
+			case TYPE_ROUTE_ANDROID:
+					deferredMain_getSystemDirectory.resolve(getSystemDirectory_android[type]);
+				break;
+			case TYPE_ROUTE_OS_CONST:
+					deferredMain_getSystemDirectory.resolve(OS.Constants.Path[type]);
+				break;
+		};
+	}
+
+	return deferredMain_getSystemDirectory.promise;
+}
+
+function getSystemDirectory_android(type) {
+	// progrmatic helper for getSystemDirectory in MainWorker - devuser should NEVER call this himself
+	// type - string - currently accepted values
+		// DIRECTORY_DOWNLOADS
+		// DIRECTORY_MOVIES
+		// DIRECTORY_MUSIC
+		// DIRECTORY_PICTURES
+
+	// var OSStuff.jenv = null;
+	try {
+		if (!OSStuff.jenv) {
+			OSStuff.jenv = JNI.GetForThread();
+		}
+
+		var SIG = {
+			Environment: 'Landroid/os/Environment;',
+			String: 'Ljava/lang/String;',
+			File: 'Ljava/io/File;'
+		};
+
+		var Environment = JNI.LoadClass(OSStuff.jenv, SIG.Environment.substr(1, SIG.Environment.length - 2), {
+			static_fields: [
+				{ name: 'DIRECTORY_DOWNLOADS', sig: SIG.String },
+				{ name: 'DIRECTORY_MOVIES', sig: SIG.String },
+				{ name: 'DIRECTORY_MUSIC', sig: SIG.String },
+				{ name: 'DIRECTORY_PICTURES', sig: SIG.String }
+			],
+			static_methods: [
+				{ name:'getExternalStorageDirectory', sig:'()' + SIG.File }
+			]
+		});
+
+		var jFile = JNI.LoadClass(OSStuff.jenv, SIG.File.substr(1, SIG.File.length - 2), {
+			methods: [
+				{ name:'getPath', sig:'()' + SIG.String }
+			]
+		});
+
+		var OSPath_dirExternalStorage = JNI.ReadString(OSStuff.jenv, Environment.getExternalStorageDirectory().getPath());
+		var OSPath_dirname = JNI.ReadString(OSStuff.jenv, Environment[type]);
+		var OSPath_dir = OS.Path.join(OSPath_dirExternalStorage, OSPath_dirname);
+		console.log('OSPath_dir:', OSPath_dir);
+
+		return OSPath_dir;
+
+	} finally {
+		// if (OSStuff.jenv) {
+		// 	JNI.UnloadClasses(OSStuff.jenv);
+		// }
+	}
+}
+
+// rev4 - not yet updated to gist - jun 12 16 - using Object.assign for defaults - https://gist.github.com/Noitidart/e6dbbe47fbacc06eb4ca
 var _safedForPlatFS_pattWIN = /([\\*:?<>|\/\"])/g;
 var _safedForPlatFS_pattNIXMAC = /[\/:]/g;
 function safedForPlatFS(aStr, aOptions={}) {
@@ -88,12 +297,10 @@ function safedForPlatFS(aStr, aOptions={}) {
 	// 022816 - i added : to _safedForPlatFS_pattNIXMAC because on mac it was replacing it with a `/` which is horrible it will screw up OS.Path.join .split etc
 
 	// set defaults on aOptions
-	if (!('allPlatSafe' in aOptions)) {
-		aOptions.allPlatSafe = false;
-	}
-	if (!('repStr' in aOptions)) {
-		aOptions.repStr = '-';
-	}
+	aOptions = Object.assign({
+		allPlatSafe: false,
+		repStr: '-'
+	}, aOptions)
 
 	var usePlat = aOptions.allPlatSafe ? 'winnt' : core.os.mname; // a windows path is safe in all platforms so force that. IF they dont want all platforms then use the current platform
 	switch (usePlat) {

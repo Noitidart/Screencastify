@@ -2,6 +2,10 @@ var core;
 var gFsComm;
 var gRecorder;
 
+var gTime;
+var gBlob;
+var gURL;
+
 function getPage() {
 	var href = location.href;
 
@@ -394,6 +398,7 @@ var NewRecordingPage = React.createClass({
 			URL.revokeObjectURL(gURL);
 			gURL = null;
 			gBlob = null;
+			gTime = null;
 			updateRecStateUninit();
 		}
 	},
@@ -444,6 +449,7 @@ var NewRecordingPage = React.createClass({
 						console.log('in dataavailable!');
 						gBlob = e.data;
 						gURL = URL.createObjectURL(gBlob);
+						gTime = Date.now();
 						gRecorder = null;
 						gStream = null;
 						updateRecStateStop();
@@ -501,9 +507,10 @@ function processAction(aArg) {
 	fr.onload = function() {
 		aArg.arrbuf = this.result;
 		aArg.mimetype = gBlob.type;
+		aArg.time = gTime;
 
-		callInWorker('processAction', aArg, function() {
-			console.log('back in window after calling processAction');
+		callInWorker('processAction', aArg, function(status) {
+			console.log('back in window after calling processAction, resulting status:', status);
 		});
 	};
 	fr.readAsArrayBuffer(gBlob);
