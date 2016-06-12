@@ -77,6 +77,7 @@ switch (gPage.name) {
 			var SET_PARAM = 'SET_PARAM';
 			var TOGGLE_OPT = 'TOGGLE_OPT';
 			var UPDATE_RECSTATE = 'UPDATE_RECSTATE';
+			var CHANGE_ACTIVE_ACTION = 'CHANGE_ACTIVE_ACTION';
 
 			// non-action - SET_PARAM systemvideo
 			var SYSTEMVIDEO_MONITOR = 'SYSTEMVIDEO_MONITOR';
@@ -121,6 +122,14 @@ switch (gPage.name) {
 				}
 			}
 
+			function changeActiveAction(group, dataid) {
+				return {
+					type: CHANGE_ACTIVE_ACTION,
+					group,
+					dataid
+				}
+			}
+
 		break;
 }
 
@@ -140,7 +149,8 @@ switch (gPage.name) {
 					systemvideo: enum[SYSTEMVIDEO_MONITOR, SYSTEMVIDEO_WINDOW, SYSTEMVIDEO_APPLICATION] - default:SYSTEMVIDEO_MONITOR
 					fps: int - default:10
 				},
-				recording: enum[RECSTATE_UNINIT, RECSTATE_WAITING_USER, RECSTATE_RECORDING, RECSTATE_STOPPED, RECSTATE_PAUSED]
+				recording: enum[RECSTATE_UNINIT, RECSTATE_WAITING_USER, RECSTATE_RECORDING, RECSTATE_STOPPED, RECSTATE_PAUSED],
+				activeactions: {group:dataid} // for valid group and dataid see my rendering of NewRecordingPage, thats where this is decided, in each BootstrapSplitButtonDropdown
 			};
 			*/
 
@@ -175,10 +185,22 @@ switch (gPage.name) {
 				}
 			}
 
+			function activeactions(state={ save:'browse', upload:'imguranon', share:'twitter' }, action) {
+				switch (action.type) {
+					case CHANGE_ACTIVE_ACTION:
+						return Object.assign({}, state, {
+							[action.group]: action.dataid
+						});
+					default:
+						return state;
+				}
+			}
+
 			pageReducers = {
 				params,
 				options,
-				recording
+				recording,
+				activeactions
 			};
 
 		break;
@@ -222,10 +244,10 @@ var NewRecordingPage = React.createClass({
 	},
 	render() {
 		var { param } = this.props; // passed from parent component
-		var { mic, systemaudio, webcam, fps, systemvideo, recording } = this.props; // passed from mapStateToProps
-		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication, updateRecStateUser, updateRecStateStop, updateRecStatePause, updateRecStateRecording, updateRecStateUninit } = this.props; // passed from mapDispatchToProps
+		var { mic, systemaudio, webcam, fps, systemvideo, recording, activeactions } = this.props; // passed from mapStateToProps
+		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication, updateRecStateUser, updateRecStateStop, updateRecStatePause, updateRecStateRecording, updateRecStateUninit, chgActionSaveQuick, chgActionSaveBrowse, chgActionUploadImgurAnon, chgActionUploadImgur, chgActionUploadGfycat, chgActionUploadYoutube, chgActionShareFacebook, chgActionShareTwitter } = this.props; // passed from mapDispatchToProps
 		// console.log('NewRecordingPage props:', this.props);
-
+		console.error('activations in newrecordingpage:', activeactions);
 		var captureSystemVideoItems = [
 			{ name:formatStringFromNameCore('newrecording_application', 'app'), desc:formatStringFromNameCore('newrecording_application_desc', 'app'), active:(systemvideo === SYSTEMVIDEO_APPLICATION), onClick:setSystemvideoApplication },
 			{ name:formatStringFromNameCore('newrecording_monitor', 'app'), desc:formatStringFromNameCore('newrecording_monitor_desc', 'app'), active:(systemvideo === SYSTEMVIDEO_MONITOR), onClick:setSystemvideoMonitor },
@@ -289,11 +311,37 @@ var NewRecordingPage = React.createClass({
 			),
 			recording != RECSTATE_STOPPED ? undefined : React.createElement('div', { id:'preview' },
 				React.createElement('div', { id:'actions' },
-					React.createElement(BootstrapButton, { name:'Save to File' }),
+					React.createElement(BootstrapSplitButtonDropdown, {
+						item: {
+							name:formatStringFromNameCore('newrecording_save', 'app'),
+							list: [
+								{ name:formatStringFromNameCore('newrecording_savequick', 'app'), glyph:'play', active:(activeactions.save=='quick'), onClick:chgActionSaveQuick },
+								{ name:formatStringFromNameCore('newrecording_savebrowse', 'app'), glyph:'stop', active:(activeactions.save=='browse'), onClick:chgActionSaveBrowse }
+							]
+						}
+					}),
 					' ',
-					React.createElement(BootstrapButton, { name:'Upload to Cloud' }),
+					React.createElement(BootstrapSplitButtonDropdown, {
+						item: {
+							name:formatStringFromNameCore('newrecording_upload', 'app'),
+							list: [
+								{ name:formatStringFromNameCore('newrecording_gfycat', 'app'), glyph:'play', active:(activeactions.upload=='gfycat'), onClick:chgActionUploadGfycat },
+								{ name:formatStringFromNameCore('newrecording_youtube', 'app'), glyph:'trash', active:(activeactions.upload=='youtube'), onClick:chgActionUploadYoutube },
+								{ name:formatStringFromNameCore('newrecording_imguranon', 'app'), glyph:'pause', active:(activeactions.upload=='imguranon'), onClick:chgActionUploadImgurAnon },
+								{ name:formatStringFromNameCore('newrecording_imgur', 'app'), glyph:'stop', active:(activeactions.upload=='imgur'), onClick:chgActionUploadImgur },
+							]
+						}
+					}),
 					' ',
-					React.createElement(BootstrapButton, { name:'Share to Social Media' })
+					React.createElement(BootstrapSplitButtonDropdown, {
+						item: {
+							name:formatStringFromNameCore('newrecording_share', 'app'),
+							list: [
+								{ name:formatStringFromNameCore('newrecording_facebook', 'app'), glyph:'stop', active:(activeactions.share=='facebook'), onClick:chgActionShareFacebook },
+								{ name:formatStringFromNameCore('newrecording_twitter', 'app'), glyph:'play', active:(activeactions.share=='twitter'), onClick:chgActionShareTwitter }
+							]
+						}
+					})
 				),
 				React.createElement('video', { id:'video', controls:'true' },
 					React.createElement('source', { src:'http://www.w3schools.com/html/mov_bbb.ogg', type:'video/ogg' })
@@ -337,17 +385,31 @@ var ManageRecordingPage = React.createClass({
 	}
 });
 
-const BootstrapButton = ({ className, color='default', glyph, name, disabled, active, unsupported, onClick }) => (
+const BootstrapButton = ({ children, className, color='default', glyph, name, disabled, active, unsupported, onClick, aria, data }) => {
 	// active,disabled,unsupported is optional, can be undefined, else bool
 	// color, glyph, name are str
 	// name is also optional, can be undefined
 	// onClick is a function, optional
-	React.createElement('button', { type:'button', className:'btn btn-'+color+' btn-lg' + (active ? ' active' : '') + (className ? ' ' + className : ''), title:(unsupported ? formatStringFromNameCore('newrecording_unsupported_tooltip', 'app') : undefined), disabled:(unsupported || disabled ? true : undefined), onClick },
+	// aria and data are objects
+	// console.error('bootstrapbutton children:', children);
+	var cProps = { type:'button', className:'btn btn-'+color+' btn-lg' + (active ? ' active' : '') + (className ? ' ' + className : ''), title:(unsupported ? formatStringFromNameCore('newrecording_unsupported_tooltip', 'app') : undefined), disabled:(unsupported || disabled ? true : undefined), onClick };
+	if (aria) {
+		for (var attr in aria) {
+			cProps['aria-' + attr] = aria[attr];
+		}
+	}
+	if (data) {
+		for (var attr in data) {
+			cProps['data-' + attr] = data[attr];
+		}
+	}
+	return React.createElement('button', cProps,
 		!glyph ? undefined : React.createElement('span', { className:'glyphicon glyphicon-'+glyph, 'aria-hidden':'true' }),
 		(glyph && name) ? ' ' : undefined,
-		name // can be undefined
+		name, // can be undefined
+		children
 	)
-);
+};
 
 const BootstrapListGroup = ({ items }) => (
 	// items should be array of objects like this:
@@ -371,6 +433,98 @@ const BootstrapButtonGroup = ({ items }) => (
 		items.map(item => BootstrapButton(item))
 	)
 );
+
+var BootstrapSplitButtonDropdown = React.createClass({
+	render: function() {
+		var { item } = this.props;
+
+		// an item in the list MUST be active
+
+		// figure out the defaultGlyph, which is the glyph of the button. it will be of the active item
+		var glyph;
+		for (var el of item.list) {
+			if (el.active) {
+				glyph = el.glyph;
+				break;
+			}
+		}
+
+		return React.createElement('div', { className:'btn-group btn-group-lg', role:'group' },
+			BootstrapButton(Object.assign({ glyph }, item)),
+			React.createElement(BootstrapButton, Object.assign({}, item, { onClick:this.toggle, name:undefined, className:'dropdown-toggle', aria:{haspopup:true, expanded:false}, data:{toggle:'dropdown'} }),
+				React.createElement('span', { className:'caret' }),
+				React.createElement('span', { className:'sr-only' },
+					'Toggle Dropdown'
+				)
+			),
+			React.createElement('ul', { ref:'ul', className:'dropdown-menu dropdown-menu-right' },
+				item.list.map( el =>
+					React.createElement('li', { className:(el.active ? 'active' : undefined), onClick:el.onClick },
+						React.createElement('a', { href:'#' },
+							!el.glyph ? undefined : React.createElement('span', { className:'glyphicon glyphicon-'+el.glyph, 'aria-hidden':'true' }),
+							(el.glyph && el.name) ? ' ' : undefined,
+							el.name
+						)
+					)
+				)
+			)
+		)
+	},
+	open: false,
+	toggle: function() {
+		console.log('this.refs:', this.refs);
+		var domEl = this.refs.ul.parentNode;
+		console.log('domEl:', domEl);
+		if (!this.open) {
+			// open it
+			domEl.classList.add('open');
+			domEl.setAttribute('aria-expanded', true);
+			window.addEventListener('click', this.blurClick, false);
+			window.addEventListener('keydown', this.blurKey, false);
+		} else {
+			// close it
+			domEl.classList.remove('open');
+			domEl.setAttribute('aria-expanded', false);
+			window.removeEventListener('click', this.blurClick, false);
+			window.removeEventListener('keydown', this.blurKey, false);
+		}
+		this.open = !this.open;
+	},
+	// no need for this liClick, as blurClick will handle it, it makes sure to not close if the ul element is clicked, but on li/a/glyph click it will close
+	// liClick: function() {
+	// 	// this.toggle();
+	// },
+	blurKey: function(e) {
+		// i am assuming this.open is true when this is called
+		if (e.key == 'Escape') {
+			this.toggle();
+		}
+	},
+	blurClick: function(e) {
+		// i am assuming this.open is true when this is called
+		if (e.target == this.refs.ul.previousSibling) {
+			console.log('blurClick, exit as caret');
+			return;
+		}
+		if (e.target == this.refs.ul) {
+			console.log('blurClick, exit as ul');
+			return;
+		}
+		// if (e.target.parentNode == this.refs.ul) {
+		// 	console.log('blurClick, exit as li');
+		// 	return;
+		// }
+		// if (e.target.parentNode.parentNode == this.refs.ul) {
+		// 	console.log('blurClick, exit as a');
+		// 	return;
+		// }
+		// if (e.target.parentNode.parentNode.parentNode == this.refs.ul) {
+		// 	console.log('blurClick, exit as glyph');
+		// 	return;
+		// }
+		this.toggle();
+	}
+});
 
 var IndexPage = React.createClass({
 	render() {
@@ -641,7 +795,15 @@ var NewRecordingMemo = {
 	updateRecStateStop: () => store.dispatch(updateRecState(RECSTATE_STOPPED)),
 	updateRecStatePause: () => store.dispatch(updateRecState(RECSTATE_PAUSED)),
 	updateRecStateRecording: () => store.dispatch(updateRecState(RECSTATE_RECORDING)),
-	updateRecStateUninit: () => store.dispatch(updateRecState(RECSTATE_UNINIT))
+	updateRecStateUninit: () => store.dispatch(updateRecState(RECSTATE_UNINIT)),
+	chgActionSaveQuick: () => store.dispatch(changeActiveAction('save', 'quick')),
+	chgActionSaveBrowse: () => store.dispatch(changeActiveAction('save', 'browse')),
+	chgActionUploadImgurAnon: () => store.dispatch(changeActiveAction('upload', 'imguranon')),
+	chgActionUploadImgur: () => store.dispatch(changeActiveAction('upload', 'imgur')),
+	chgActionUploadGfycat: () => store.dispatch(changeActiveAction('upload', 'gfycat')),
+	chgActionUploadYoutube: () => store.dispatch(changeActiveAction('upload', 'youtube')),
+	chgActionShareFacebook: () => store.dispatch(changeActiveAction('share', 'facebook')),
+	chgActionShareTwitter: () => store.dispatch(changeActiveAction('share', 'twitter'))
 };
 var NewRecordingContainer = ReactRedux.connect(
 	function mapStateToProps(state, ownProps) {
@@ -651,7 +813,8 @@ var NewRecordingContainer = ReactRedux.connect(
 			webcam: state.options.webcam,
 			fps: state.params.fps,
 			systemvideo: state.params.systemvideo,
-			recording: state.recording
+			recording: state.recording,
+			activeactions: state.activeactions
 		}
 	},
 	function mapDispatchToProps(dispatch, ownProps) {
