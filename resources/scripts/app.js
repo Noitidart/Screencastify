@@ -258,7 +258,7 @@ var NewRecordingPage = React.createClass({
 	render() {
 		var { param } = this.props; // passed from parent component
 		var { mic, systemaudio, webcam, fps, systemvideo, recording, activeactions } = this.props; // passed from mapStateToProps
-		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication, updateRecStateUser, updateRecStateStop, updateRecStatePause, updateRecStateRecording, updateRecStateUninit, chgActionSaveQuick, chgActionSaveBrowse, chgActionUploadImgurAnon, chgActionUploadImgur, chgActionUploadGfycat, chgActionUploadYoutube, chgActionShareFacebook, chgActionShareTwitter } = this.props; // passed from mapDispatchToProps
+		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication, updateRecStateUser, updateRecStateStop, updateRecStatePause, updateRecStateRecording, updateRecStateUninit, chgActionSaveQuick, chgActionSaveBrowse, chgActionUploadImgurAnon, chgActionUploadImgur, chgActionUploadGfycatAnon, chgActionUploadGfycat, chgActionUploadYoutube, chgActionShareFacebook, chgActionShareTwitter } = this.props; // passed from mapDispatchToProps
 		// console.log('NewRecordingPage props:', this.props);
 		// console.log('activations in newrecordingpage:', activeactions);
 
@@ -341,6 +341,7 @@ var NewRecordingPage = React.createClass({
 							name:formatStringFromNameCore('newrecording_upload', 'app'),
 							onClick: this.upload,
 							list: [
+								{ name:formatStringFromNameCore('newrecording_gfycatanon', 'app'), glyph:'star', active:(activeactions.upload=='gfycatanon'), onClick:chgActionUploadGfycataNON },
 								{ name:formatStringFromNameCore('newrecording_gfycat', 'app'), glyph:'flash', active:(activeactions.upload=='gfycat'), onClick:chgActionUploadGfycat },
 								{ name:formatStringFromNameCore('newrecording_youtube', 'app'), glyph:'globe', active:(activeactions.upload=='youtube'), onClick:chgActionUploadYoutube },
 								{ name:formatStringFromNameCore('newrecording_imguranon', 'app'), glyph:'cutlery', active:(activeactions.upload=='imguranon'), onClick:chgActionUploadImgurAnon },
@@ -962,6 +963,7 @@ var NewRecordingMemo = {
 	chgActionSaveBrowse: () => store.dispatch(changeActiveAction('save', 'browse')),
 	chgActionUploadImgurAnon: () => store.dispatch(changeActiveAction('upload', 'imguranon')),
 	chgActionUploadImgur: () => store.dispatch(changeActiveAction('upload', 'imgur')),
+	chgActionUploadGfycatAnon: () => store.dispatch(changeActiveAction('upload', 'gfycatanon')),
 	chgActionUploadGfycat: () => store.dispatch(changeActiveAction('upload', 'gfycat')),
 	chgActionUploadYoutube: () => store.dispatch(changeActiveAction('upload', 'youtube')),
 	chgActionShareFacebook: () => store.dispatch(changeActiveAction('share', 'facebook')),

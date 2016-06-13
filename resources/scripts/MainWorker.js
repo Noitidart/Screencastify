@@ -102,6 +102,216 @@ function autogenScreencastFileName(aDateGettime) {
 	return [formatStringFromName('screencast', 'main'), ' - ', Mmm, ' ', DD, ', ', YYYY, ' ', hh, ':', mm, ' ', AM].join('');
 }
 
+function action_gfycatanon(rec, aCallback) {
+	// start async-proc938
+
+	var YourOwnRandomString = randomString(10);
+	console.log('YourOwnRandomString:', YourOwnRandomString);
+	var upload = function() {
+		var blob = new Blob([new Uint8Array(rec.arrbuf)], { type:rec.mimetype });
+		var file = new File([blob], autogenScreencastFileName(rec.time));
+
+		var data = new FormData();
+		data.append('key', YourOwnRandomString);
+		data.append('acl', 'private');
+		data.append('AWSAccessKeyId', 'AKIAIT4VU4B7G2LQYKZQ');
+		data.append('policy', 'eyAiZXhwaXJhdGlvbiI6ICIyMDIwLTEyLTAxVDEyOjAwOjAwLjAwMFoiLAogICAgICAgICAgICAiY29uZGl0aW9ucyI6IFsKICAgICAgICAgICAgeyJidWNrZXQiOiAiZ2lmYWZmZSJ9LAogICAgICAgICAgICBbInN0YXJ0cy13aXRoIiwgIiRrZXkiLCAiIl0sCiAgICAgICAgICAgIHsiYWNsIjogInByaXZhdGUifSwKCSAgICB7InN1Y2Nlc3NfYWN0aW9uX3N0YXR1cyI6ICIyMDAifSwKICAgICAgICAgICAgWyJzdGFydHMtd2l0aCIsICIkQ29udGVudC1UeXBlIiwgIiJdLAogICAgICAgICAgICBbImNvbnRlbnQtbGVuZ3RoLXJhbmdlIiwgMCwgNTI0Mjg4MDAwXQogICAgICAgICAgICBdCiAgICAgICAgICB9');
+		data.append('success_action_status', '200');
+		data.append('signature', 'mk9t/U/wRN4/uU01mXfeTe2Kcoc=');
+		data.append('Content-Type', rec.mimetype);
+		data.append('file', file);
+
+		xhrAsync(
+			'https://gifaffe.s3.amazonaws.com/',
+			{
+				method: 'POST',
+				data
+			},
+			checkUpload
+		);
+	};
+
+	var checkUpload = function(xhrArg) {
+		var { request, ok, reason } = xhrArg;
+		var { status, statusText, response, responseText } = request;
+		console.log('checkUpload:', { request, ok, reason, status, statusText, response, responseText });
+		if (xhrArg.ok) {
+			transcode();
+		} else {
+			aCallback({
+				ok: false,
+				reason: 'gfycatanon server /upload/ failed. ' + xhrArg.reason
+			});
+		}
+	};
+
+	var transcode = function() {
+		xhrAsync(
+			'https://upload.gfycat.com/transcodeRelease/' + YourOwnRandomString,
+			{
+				method: 'GET',
+				responseType: 'json'
+			},
+			checkTranscode
+		);
+	};
+
+	var checkTranscode = function(xhrArg) {
+		var { request, ok, reason } = xhrArg;
+		var { status, statusText, response } = request;
+		console.log('checkTranscode:', { request, ok, reason, status, statusText, response });
+		if (xhrArg.ok) {
+			// response = {
+			// 	isOk: 'true'
+			// }
+			switch (response.isOk) {
+				case 'true':
+						get();
+					break;
+				default:
+					aCallback({
+						ok: false,
+						reason: 'gfycatanon server /transcodeRelease/ unknown response:' + JSON.stringify(response)
+					});
+			}
+		} else {
+			aCallback({
+				ok: false,
+				reason: 'gfycatanon server /transcodeRelease/ failed. ' + xhrArg.reason
+			});
+		}
+	};
+
+	var get = function() {
+		xhrAsync(
+			'https://upload.gfycat.com/status/' + YourOwnRandomString,
+			{
+				method: 'GET',
+				responseType: 'json'
+			},
+			checkGet
+		);
+	};
+
+	var gfyname;
+	var responses = []; // console.log('remove line on production')
+	var checkGet = function(xhrArg) {
+		var { request, ok, reason } = xhrArg;
+		var { status, statusText, response } = request;
+		console.log('checkGet:', { request, ok, reason, status, statusText, response });
+		if (xhrArg.ok) {
+			if (responses.indexOf(JSON.stringify(response)) == -1) { responses.push(JSON.stringify(response)) } // console.log('remove line on production')
+			// response = {
+			// 	task:"fetching",
+			// 	time:10
+			// }
+
+			// response = {
+			// 	task:"fetchingUpload"
+			// 	time:20
+			// }
+
+			// response = {
+			// 	task:"encoding"
+			// 	time:30
+			// }
+
+			// response = {
+			// 	task:"Resizing"
+			// 	time:10
+			// }
+
+			// response = {
+			// 	task:"exploding"
+			// 	time:10
+			// }
+
+			// response = {
+			// 	task:"uploading"
+			// 	time:2
+			// }
+
+			// response = {
+			// 	task:"complete"
+			// 	gfyname:ClosedDelectableEmperorpenguin
+			// }
+
+			// C:\Users\Mercurius\Pictures\gfycat upload flow.png
+			switch (response.task) { // in order as responses show
+				case 'fetching': // 1sec
+				case 'fetchingUpload': // 1sec
+				case 'Resizing': // 9sec
+				case 'exploding': // 6sec
+				case 'encoding': // 90sec
+				case 'uploading': // 2sec
+						console.log('upload still in progress, will check in 5sec');
+						setTimeout(get, 10000);
+					break;
+				case 'complete':
+						console.log('/status/ responses:', responses);
+						gfyname = response.gfyname;
+						info();
+					break;
+				default:
+					aCallback({
+						ok: false,
+						reason: 'gfycatanon server /status/ unknown response:' + JSON.stringify(response)
+					});
+			}
+		} else {
+			aCallback({
+				ok: false,
+				reason: 'gfycatanon server /status/ failed. ' + xhrArg.reason
+			});
+		}
+	};
+
+	var info = function() {
+		xhrAsync(
+			'https://gfycat.com/cajax/get/' + gfyname,
+			{
+				method: 'GET',
+				responseType: 'json'
+			},
+			checkInfo
+		);
+	};
+
+	var checkInfo = function(xhrArg) {
+		var { request, ok, reason } = xhrArg;
+		var { status, statusText, response } = request;
+		console.log('checkInfo', { request, ok, reason, status, statusText, response });
+		if (xhrArg.ok) {
+			// response = {"gfyItem":{"gfyId":"nauticalshallowhorseshoecrab","gfyName":"NauticalShallowHorseshoecrab","gfyNumber":"348391832","userName":"anonymous","width":"1920","height":"1200","frameRate":"30","numFrames":"115","mp4Url":"https://fat.gfycat.com/NauticalShallowHorseshoecrab.mp4","webmUrl":"https://zippy.gfycat.com/NauticalShallowHorseshoecrab.webm","webpUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab.webp","mobileUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-mobile.mp4","mobilePosterUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-mobile.jpg","posterUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-poster.jpg","thumb360Url":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-360.mp4","thumb360PosterUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-thumb360.jpg","thumb100PosterUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-thumb100.jpg","max5mbGif":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-size_restricted.gif","max2mbGif":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-small.gif","mjpgUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab.mjpg","gifUrl":"https://zippy.gfycat.com/NauticalShallowHorseshoecrab.gif","gifSize":null,"mp4Size":"1543268","webmSize":"275415","createDate":"1465789154","views":1,"title":null,"extraLemmas":null,"md5":"f69894a066a91ef1fd6e02b96de2c949","tags":null,"nsfw":null,"sar":"1","url":null,"source":"1","dynamo":null,"subreddit":null,"redditId":null,"redditIdText":null,"likes":null,"dislikes":null,"published":null,"description":null,"copyrightClaimaint":null,"languageText":null}}
+			if (response.gfyItem) {
+				console.log('JSON.stringify(response):', JSON.stringify(response))
+				var { userName, mp4Url, webmUrl, gifUrl } = response.gfyItem;
+				aCallback({
+					ok: true,
+					gfyUrl: 'https://gfycat.com/' + gfyname,
+					userName,
+					mp4Url,
+					webmUrl,
+					gifUrl // CURRENTLY DOES NOT WORK - i posted about it here -https://www.reddit.com/r/gfycat/comments/4ntxlo/gfycat_api_question_nonanonymous_delete_url/
+				});
+			} else {
+				aCallback({
+					ok: false,
+					reason: 'gfycatanon server /get/ unknown response:' + JSON.stringify(response)
+				});
+			}
+		} else {
+			aCallback({
+				ok: false,
+				reason: 'gfycatanon server /get/ failed. ' + xhrArg.reason
+			});
+		}
+	};
+
+	upload();
+	// end async-proc938
+}
+
 function action_quick(rec, aCallback) {
 	// action for save-quick
 	console.log('worker - action_quick');
@@ -275,6 +485,17 @@ function globalRecordComplete(aArg, aComm) {
 // End - Addon Functionality
 
 // start - common helper functions
+function randomString(aLength) {
+	// http://stackoverflow.com/a/1349426/1828637
+    var text = "";
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+    for( var i=0; i < aLength; i++ )
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+
+    return text;
+}
+
 var _cache_getSystemDirectory = {};
 function getSystemDirectory(type) {
 	// main entry point that should be used for getting system path. worker, botostrap, etc should call here
