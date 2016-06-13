@@ -1,0 +1,3 @@
+[submodule "resources/scripts/supplement"]
+	path = resources/scripts/supplement
+	url = git@github.com:Noitidart/ScreencastifySupplement
