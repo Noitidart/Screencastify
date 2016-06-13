@@ -407,6 +407,7 @@ function globalRecordStart(id) {
 // end - functions called by worker
 
 //start - common helper functions
+// rev3 - not yet comitted to gist - reports back filter ext picked
 // rev2 - not yet commited to gist.github
 function browseFile(aArg, aComm) {
 	var { aDialogTitle, aOptions } = aArg
@@ -464,12 +465,10 @@ function browseFile(aArg, aComm) {
 
 			if (aOptions.returnDetails) {
 				var cBrowsedDetails = {
-					filepath: fp.file.path
+					filepath: fp.file.path,
+					filter: aOptions.filters ? aOptions.filters[(fp.filterIndex * 2) + 1] : undefined,
+					replace: aOptions.mode == 'modeSave' ? (rv == Ci.nsIFilePicker.returnReplace) : undefined
 				};
-
-				if (aOptions.mode == 'modeSave') {
-					cBrowsedDetails.replace = (rv == Ci.nsIFilePicker.returnReplace);
-				}
 
 				retFP = cBrowsedDetails;
 			} else {

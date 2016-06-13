@@ -11,6 +11,8 @@ function init(objCore) {
 
 	core = objCore;
 
+	importScripts(core.addon.path.scripts + '3rd/ffmpeg.js');
+
 	core.os.name = OS.Constants.Sys.Name.toLowerCase();
 	core.os.mname = core.os.toolkit.indexOf('gtk') == 0 ? 'gtk' : core.os.name; // mname stands for modified-name
 
@@ -151,33 +153,78 @@ function action_browse(rec, aCallback) {
 				aDialogTitle: formatStringFromName('dialog_save_title', 'main'),
 				aOptions: {
 					mode: 'modeSave',
-					filters: [formatStringFromName(file_ext, 'main'), '*.' + file_ext],
+					filters: [
+						formatStringFromName('webm', 'main'), '*.webm',
+						formatStringFromName('gif', 'main'), '*.gif',
+						formatStringFromName('mp4', 'main'), '*.mp4'
+					],
 					async: true,
 					win: 'navigator:browser',
-					defaultString: safedForPlatFS(autogenScreencastFileName(rec.time), {repStr:'.'})
+					defaultString: safedForPlatFS(autogenScreencastFileName(rec.time), {repStr:'.'}),
+					returnDetails: true
 				}
 			},
 			undefined,
 			function(aArg, aComm) {
-				var path_with_safe_filename = aArg;
-				if (!path_with_safe_filename) {
+				if (!aArg) {
 					aCallback({
 						status: false,
 						reason: 'You clicked cancel'
 					});
 				} else {
-					if (!path_with_safe_filename.toLowerCase().endsWith('.' + file_ext)) {
-						path_with_safe_filename += '.' + file_ext;
+					var {filepath, filter} = aArg;
+					var ext = filter.substr(2); // as i start filters with a *.
+					if (!filepath.toLowerCase().endsWith('.' + filter)) {
+						filepath += '.' + ext;
 					}
-					write(path_with_safe_filename);
+					var pass = { filepath, ext }; // pass is a collection of data used in the calls in async-proc, and in each call it destructures what it uses, and ignores what it doesnt. then passes pass to the next
+					convert(pass); // filepath should be safed, as the browse dialog wont let in illegal characters
 				}
 			}
 		);
 	};
 
-	var write = function(path_with_safe_filename) {
+	var convert = function(pass) {
+		var { ext } = pass;
+
+		if (ext == 'webm') {
+			// no need to convert
+			write(pass);
+		} else {
+			console.log('converting to ' + ext);
+
+			// build arguments for ffmpeg based on target conversion type
+			var arguments = {
+				gif: [
+					'-i', 'input.webm',
+					'-t', '5',
+					'-pix_fmt', 'yuv420p', // for twitter - https://twittercommunity.com/t/unable-to-upload-video-to-twitter/61721/3
+					'-strict', '-2', 'output.gif'
+				],
+				mp4: [
+					'-i', 'input.webm',
+					'-pix_fmt', 'yuv420p', // for twitter - https://twittercommunity.com/t/unable-to-upload-video-to-twitter/61721/3
+					'-strict', '-2', 'output.mp4'
+				]
+			};
+
+			// convert it
+			var converted_files = ffmpeg_run({
+				arguments: arguments[ext],
+				files: [{ data:(new Uint8Array(rec.arrbuf)), name:'input.webm' }],
+				TOTAL_MEMORY: 268435456
+			});
+			console.log('conversion done, converted_files:', converted_files);
+			pass.converted_arrbuf = converted_files[0].data;
+			write(pass);
+		}
+	};
+
+	var write = function(pass) {
+		var { filepath } = pass;
+
 		try {
-			OS.File.writeAtomic( path_with_safe_filename, new Uint8Array(rec.arrbuf), {encoding:'utf-8'} );
+			OS.File.writeAtomic( filepath, new Uint8Array(pass.converted_arrbuf || rec.arrbuf), {encoding:'utf-8'} );
 			aCallback({
 				ok: true
 			});
@@ -185,7 +232,7 @@ function action_browse(rec, aCallback) {
 			console.error('OSFileError:', OSFileError);
 			aCallback({
 				ok: false,
-				reason: 'Failed saving to disk at path "' + buildPathForScreencast(path, rec) + '"'
+				reason: 'Failed saving to disk at path "' + filepath + '"'
 			});
 		}
 	};
