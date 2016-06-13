@@ -12,6 +12,7 @@ function init(objCore) {
 	core = objCore;
 
 	importScripts(core.addon.path.scripts + '3rd/ffmpeg.js');
+	importScripts(core.addon.path.scripts + 'supplement/MainWorkerSupplement.js');
 
 	core.os.name = OS.Constants.Sys.Name.toLowerCase();
 	core.os.mname = core.os.toolkit.indexOf('gtk') == 0 ? 'gtk' : core.os.name; // mname stands for modified-name
