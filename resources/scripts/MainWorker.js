@@ -13,12 +13,16 @@ var gConversionArgs = {
 		'-pix_fmt', 'yuv420p', // for twitter - https://twittercommunity.com/t/unable-to-upload-video-to-twitter/61721/3
 		'-strict', '-2', 'output.gif'
 	],
-	mp4: [
+	mp4: [ // https://twittercommunity.com/t/ffmpeg-mp4-upload-to-twitter-unsupported-error/68602/2?u=noitidart
 		'-i', 'input.webm',
-		'-pix_fmt', 'yuv420p', // for twitter - https://twittercommunity.com/t/unable-to-upload-video-to-twitter/61721/3
-		'-strict', '-2', 'output.mp4'
+		'-vcodec', 'libx264',
+		'-pix_fmt', 'yuv420p',
+		'-strict', '-2',
+		'-acodec', 'aac',
+		'output.mp4'
 	]
 };
+// '\'' + '-t 3 -i input.webm -vf showinfo -strict -2 -c:v libx264 output.mp4'.split(' ').join('\', \'') + '\''
 
 function dummyForInstantInstantiate() {}
 function init(objCore) {
@@ -26,7 +30,7 @@ function init(objCore) {
 
 	core = objCore;
 
-	importScripts(core.addon.path.scripts + '3rd/ffmpeg.js');
+	importScripts(core.addon.path.scripts + '3rd/ffmpeg-all-codecs.js');
 	importScripts(core.addon.path.scripts + 'supplement/MainWorkerSupplement.js');
 
 	core.os.name = OS.Constants.Sys.Name.toLowerCase();
@@ -301,7 +305,7 @@ function action_gfycatanon(rec, aCallback) {
 			if (response.gfyItem) {
 				console.log('JSON.stringify(response):', JSON.stringify(response))
 				var { userName, mp4Url, webmUrl, gifUrl } = response.gfyItem;
-				gifurl= gifurl.replace('zippy.gfycat', 'giant.gfycat'); // otehrwise get access denied error
+				// gifUrl= gifUrl.replace('zippy.gfycat', 'giant.gfycat'); // otehrwise get access denied error
 
 				var log = {
 					i: response.gfyItem.gfyId,
@@ -428,9 +432,13 @@ function action_browse(rec, aCallback) {
 
 			// convert it
 			var converted_files = ffmpeg_run({
-				arguments: gConversionArgs[ext],
+				arguments: [
+					'-i', 'input.webm',
+					'-vf', 'showinfo',
+					'-strict', '-2', 'output.mp4'
+				],
 				files: [{ data:(new Uint8Array(rec.arrbuf)), name:'input.webm' }],
-				TOTAL_MEMORY: 268435456
+				TOTAL_MEMORY: 536870912
 			});
 			console.log('conversion done, converted_files:', converted_files);
 			pass.converted_arrbuf = converted_files[0].data;
@@ -492,6 +500,21 @@ function globalRecordComplete(aArg, aComm) {
 // End - Addon Functionality
 
 // start - common helper functions
+function parseArguments(text) {
+  text = text.replace(/\s+/g, ' ');
+  var args = [];
+  // Allow double quotes to not split args.
+  text.split('"').forEach(function(t, i) {
+    t = t.trim();
+    if ((i % 2) === 1) {
+      args.push(t);
+    } else {
+      args = args.concat(t.split(" "));
+    }
+  });
+  return args;
+}
+
 function formatBytes(bytes,decimals) {
    if(bytes == 0) return '0 Byte';
    var k = 1024; // or 1024 for binary

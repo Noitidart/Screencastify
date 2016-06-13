@@ -70,7 +70,7 @@ var pageLoader = {
 	IGNORE_NONMATCH: true,
 	matches: function(aHREF, aLocation) {
 		// do your tests on aHREF, which is aLocation.href.toLowerCase(), return true if it matches
-		return (aLocation.href.toLowerCase().startsWith('about:screencastify') || aLocation.href.toLowerCase().startsWith('chrome://screencastify/content/resources/pages/app.xhtml'));
+		return (aLocation.href.toLowerCase().startsWith('about:screencastify') || aLocation.href.toLowerCase().startsWith('https://screencastify'));
 	},
 	ready: function(aContentWindow) {
 		// triggered on page ready
@@ -229,7 +229,7 @@ function init() {
 		// console.error('testing matches', content.window.location.href, 'docURI:', docURI);
 		if (pageLoader.matches(content.window.location.href.toLowerCase(), content.window.location)) {
 			// for about pages, need to reload it, as it it loaded before i registered it
-			content.window.location.href = content.window.location.href; // cannot use .reload() as the webNav.document.documentURI is now https://screencastify/
+			content.window.location.href = content.window.location.href.replace(/https\:\/\/screencastify\/?/, 'about:screencastify'); // cannot use .reload() as the webNav.document.documentURI is now https://screencastify/
 
 			// // for non-about pages, i dont reload, i just initiate the ready of pageLoader
 			// if (content.document.readyState == 'interactive' || content.document.readyState == 'complete') {
