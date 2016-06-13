@@ -9,9 +9,8 @@ var gBsComm;
 var gConversionArgs = {
 	gif: [
 		'-i', 'input.webm',
-		'-t', '5',
-		'-pix_fmt', 'yuv420p', // for twitter - https://twittercommunity.com/t/unable-to-upload-video-to-twitter/61721/3
-		'-strict', '-2', 'output.gif'
+		'-b', '2048k',
+		'output.gif'
 	],
 	mp4: [ // https://twittercommunity.com/t/ffmpeg-mp4-upload-to-twitter-unsupported-error/68602/2?u=noitidart
 		'-i', 'input.webm',
@@ -119,6 +118,45 @@ function autogenScreencastFileName(aDateGettime) {
 	}
 
 	return [formatStringFromName('screencast', 'main'), ' - ', Mmm, ' ', DD, ', ', YYYY, ' ', hh, ':', mm, ' ', AM].join('');
+}
+
+var gTwitterInjectables = []; // array of recs that need injecting, arrbuf remains BUT it is the converted arraybuffer. i dont use converted_arrbuf because in case content needs to transfer it back to framescript to send it to bootstrap to send it back to worker, in case contentscript fails to attach it
+function checkGetNextTwitterInjectable(aArg, aComm) {
+	// called everytime twitter loads by framescript to test if it should inject contentscript
+	// aArg is not used, it is undefined
+	if (gTwitterInjectables.length) {
+		var twitter_rec = gTwitterInjectables.shift();
+		return CallbackTransferReturn(twitter_rec, [twitter_rec.arrbuf]);
+	} else {
+		return undefined;
+	}
+}
+
+function action_twitter(rec, aCallback) {
+
+	// start async-proc98222
+	var convert = function(pass) {
+		var { ext } = pass;
+
+		console.log('converting to ' + ext);
+
+		// convert it
+		var converted_files = ffmpeg_run({
+			arguments: [
+				'-i', 'input.webm',
+				'-vf', 'showinfo',
+				'-strict', '-2', 'output.mp4'
+			],
+			files: [{ data:(new Uint8Array(rec.arrbuf)), name:'input.webm' }],
+			TOTAL_MEMORY: 536870912
+		});
+		console.log('conversion done, converted_files:', converted_files);
+		pass.converted_arrbuf = converted_files[0].data;
+		write(pass);
+	};
+
+	convert();
+	// end async-proc98222
 }
 
 function action_gfycatanon(rec, aCallback) {

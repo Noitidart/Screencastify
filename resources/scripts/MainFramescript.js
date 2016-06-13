@@ -7,6 +7,9 @@ var core = {addon: {id:'Screencastify@jetpack'}}; // all that should be needed i
 var gBsComm;
 var gWinComm;
 
+const MATCH_APP = 1;
+const MATCH_TWITTER = 2;
+
 // start - about module
 var aboutFactory_screencastify;
 function AboutScreencastify() {}
@@ -70,7 +73,12 @@ var pageLoader = {
 	IGNORE_NONMATCH: true,
 	matches: function(aHREF, aLocation) {
 		// do your tests on aHREF, which is aLocation.href.toLowerCase(), return true if it matches
-		return (aLocation.href.toLowerCase().startsWith('about:screencastify') || aLocation.href.toLowerCase().startsWith('https://screencastify'));
+		var href_lower = aLocation.href.toLowerCase();
+		if (href_lower.startsWith('about:screencastify') || href_lower.startsWith('https://screencastify')) {
+			return MATCH_APP;
+		} else if (aLocation.host.toLowerCase() == 'twitter.com') {
+			return MATCH_TWITTER;
+		}
 	},
 	ready: function(aContentWindow) {
 		// triggered on page ready
@@ -80,33 +88,67 @@ var pageLoader = {
 		var contentWindow = aContentWindow;
 		console.log('ready enter');
 
-		// trick firefox into thinking my about page is https and hostname is screencastify by doing pushState
-		// doing setCurrentURI does not do the trick. i need to change the webNav.document.documentURI, which is done by pushState
-		var webNav = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
-		var docURI = webNav.document.documentURI;
-		console.log('docURI:', docURI);
-		if (!webNav.setCurrentURI) {
-			console.error('no setCurrentURI!!!!, i should reload the page till i get one');
-			return;
+		switch (this.matches(contentWindow.location.href, contentWindow.location)) {
+			case MATCH_APP:
+					// about:screencastify app
+
+					// trick firefox into thinking my about page is https and hostname is screencastify by doing pushState
+					// doing setCurrentURI does not do the trick. i need to change the webNav.document.documentURI, which is done by pushState
+					var webNav = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
+					var docURI = webNav.document.documentURI;
+					console.log('docURI:', docURI);
+					if (!webNav.setCurrentURI) {
+						console.error('no setCurrentURI!!!!, i should reload the page till i get one');
+						return;
+					}
+					webNav.setCurrentURI(Services.io.newURI('https://screencastify', null, null)); // need to setCurrentURI otherwise the pushState says operation insecure
+					contentWindow.history.pushState(null, null, docURI.replace('about:screencastify', 'https://screencastify')); // note: for mediaSource:'screen' it MUST be https://screencastify/SOMETHING_HERE otherwise it wont work
+					webNav.setCurrentURI(Services.io.newURI(docURI, null, null)); // make it look like about uri again
+
+					gWinComm = new contentComm(contentWindow); // cross-file-link884757009
+
+					// var principal = contentWindow.document.nodePrincipal; // contentWindow.location.origin (this is undefined for about: pages) // docShell.chromeEventHandler.contentPrincipal (chromeEventHandler no longer has contentPrincipal)
+					// console.log('contentWindow.document.nodePrincipal', contentWindow.document.nodePrincipal);
+					// console.error('principal:', principal);
+					// gSandbox = Cu.Sandbox(principal, {
+					// 	sandboxPrototype: contentWindow,
+					// 	wantXrays: true, // only set this to false if you need direct access to the page's javascript. true provides a safer, isolated context.
+					// 	sameZoneAs: contentWindow,
+					// 	wantComponents: false
+					// });
+					// Services.scriptloader.loadSubScript(core.addon.path.scripts + 'hidden_contentscript.js?' + core.addon.cache_key, gSandbox, 'UTF-8');
+
+					console.log('ready done');
+
+				break;
+			case MATCH_TWITTER:
+					// twitter, check if should inject
+					gBsComm.transcribeMessage(
+						'callInWorker',
+						{
+							method: 'checkGetNextTwitterInjectable',
+							wait: true
+						},
+						function(aArg, aComm) {
+							var twitter_rec = aArg;
+							if (twitter_rec) {
+								// create sandbox that lives for the duration of the content window and inject TwitterContentscript.js
+
+								var principal = contentWindow.document.nodePrincipal; // contentWindow.location.origin (this is undefined for about: pages) // docShell.chromeEventHandler.contentPrincipal (chromeEventHandler no longer has contentPrincipal)
+								console.error('principal:', principal);
+								var twitter_sandbox = Cu.Sandbox(principal, {
+									sandboxPrototype: contentWindow,
+									wantXrays: true, // only set this to false if you need direct access to the page's javascript. true provides a safer, isolated context.
+									sameZoneAs: contentWindow,
+									wantComponents: false
+								});
+								Services.scriptloader.loadSubScript(core.addon.path.scripts + 'TwitterContentscript.js?' + core.addon.cache_key, twitter_sandbox, 'UTF-8');
+
+							}
+						}
+					);
+				break;
 		}
-		webNav.setCurrentURI(Services.io.newURI('https://screencastify', null, null)); // need to setCurrentURI otherwise the pushState says operation insecure
-		contentWindow.history.pushState(null, null, docURI.replace('about:screencastify', 'https://screencastify')); // note: for mediaSource:'screen' it MUST be https://screencastify/SOMETHING_HERE otherwise it wont work
-		webNav.setCurrentURI(Services.io.newURI(docURI, null, null)); // make it look like about uri again
-
-		gWinComm = new contentComm(contentWindow); // cross-file-link884757009
-
-		// var principal = contentWindow.document.nodePrincipal; // contentWindow.location.origin (this is undefined for about: pages) // docShell.chromeEventHandler.contentPrincipal (chromeEventHandler no longer has contentPrincipal)
-		// console.log('contentWindow.document.nodePrincipal', contentWindow.document.nodePrincipal);
-		// console.error('principal:', principal);
-		// gSandbox = Cu.Sandbox(principal, {
-		// 	sandboxPrototype: contentWindow,
-		// 	wantXrays: true, // only set this to false if you need direct access to the page's javascript. true provides a safer, isolated context.
-		// 	sameZoneAs: contentWindow,
-		// 	wantComponents: false
-		// });
-		// Services.scriptloader.loadSubScript(core.addon.path.scripts + 'hidden_contentscript.js?' + core.addon.cache_key, gSandbox, 'UTF-8');
-
-		console.log('ready done');
 	},
 	load: function(aContentWindow) {}, // triggered on page load if IGNORE_LOAD is false
 	error: function(aContentWindow, aDocURI) {
@@ -151,7 +193,7 @@ var pageLoader = {
 		if (pageLoader.IGNORE_FRAMES && contentWindow.frameElement) { return }
 
 		var href = contentWindow.location.href.toLowerCase();
-		if (pageLoader.matches(href, contentWindow.location)) {
+		if (pageLoader.matches(href, contentWindow.location) === MATCH_APP) {
 			// ok its our intended, lets make sure its not an error page
 			var webNav = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
 			var docURI = webNav.document.documentURI;
