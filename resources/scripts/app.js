@@ -198,7 +198,7 @@ switch (gPage.name) {
 				}
 			}
 
-			function activeactions(state={ save:'quick', upload:'imguranon', share:'twitter' }, action) {
+			function activeactions(state={ save:'quick', upload:'gfycatanon', share:'twitter' }, action) {
 				switch (action.type) {
 					case CHANGE_ACTIVE_ACTION:
 						return Object.assign({}, state, {
@@ -258,7 +258,7 @@ var NewRecordingPage = React.createClass({
 	render() {
 		var { param } = this.props; // passed from parent component
 		var { mic, systemaudio, webcam, fps, systemvideo, recording, activeactions } = this.props; // passed from mapStateToProps
-		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication, updateRecStateUser, updateRecStateStop, updateRecStatePause, updateRecStateRecording, updateRecStateUninit, chgActionSaveQuick, chgActionSaveBrowse, chgActionUploadImgurAnon, chgActionUploadImgur, chgActionUploadGfycatAnon, chgActionUploadGfycat, chgActionUploadYoutube, chgActionShareFacebook, chgActionShareTwitter } = this.props; // passed from mapDispatchToProps
+		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication, updateRecStateUser, updateRecStateStop, updateRecStatePause, updateRecStateRecording, updateRecStateUninit, chgActionSaveQuick, chgActionSaveBrowse, chgActionUploadGfycatAnon, chgActionUploadGfycat, chgActionUploadYoutube, chgActionShareFacebook, chgActionShareTwitter } = this.props; // passed from mapDispatchToProps // removed `chgActionUploadImgurAnon, chgActionUploadImgur` as i deprecated imgur
 		// console.log('NewRecordingPage props:', this.props);
 		// console.log('activations in newrecordingpage:', activeactions);
 
@@ -341,11 +341,11 @@ var NewRecordingPage = React.createClass({
 							name:formatStringFromNameCore('newrecording_upload', 'app'),
 							onClick: this.upload,
 							list: [
-								{ name:formatStringFromNameCore('newrecording_gfycatanon', 'app'), glyph:'star', active:(activeactions.upload=='gfycatanon'), onClick:chgActionUploadGfycataNON },
+								{ name:formatStringFromNameCore('newrecording_gfycatanon', 'app'), glyph:'star', active:(activeactions.upload=='gfycatanon'), onClick:chgActionUploadGfycatAnon },
 								{ name:formatStringFromNameCore('newrecording_gfycat', 'app'), glyph:'flash', active:(activeactions.upload=='gfycat'), onClick:chgActionUploadGfycat },
-								{ name:formatStringFromNameCore('newrecording_youtube', 'app'), glyph:'globe', active:(activeactions.upload=='youtube'), onClick:chgActionUploadYoutube },
-								{ name:formatStringFromNameCore('newrecording_imguranon', 'app'), glyph:'cutlery', active:(activeactions.upload=='imguranon'), onClick:chgActionUploadImgurAnon },
-								{ name:formatStringFromNameCore('newrecording_imgur', 'app'), glyph:'usd', active:(activeactions.upload=='imgur'), onClick:chgActionUploadImgur },
+								{ name:formatStringFromNameCore('newrecording_youtube', 'app'), glyph:'globe', active:(activeactions.upload=='youtube'), onClick:chgActionUploadYoutube }
+								// { name:formatStringFromNameCore('newrecording_imguranon', 'app'), glyph:'cutlery', active:(activeactions.upload=='imguranon'), onClick:chgActionUploadImgurAnon },
+								// { name:formatStringFromNameCore('newrecording_imgur', 'app'), glyph:'usd', active:(activeactions.upload=='imgur'), onClick:chgActionUploadImgur }
 							]
 						}
 					}),
@@ -961,8 +961,8 @@ var NewRecordingMemo = {
 	updateRecStateUninit: () => store.dispatch(updateRecState(RECSTATE_UNINIT)),
 	chgActionSaveQuick: () => store.dispatch(changeActiveAction('save', 'quick')),
 	chgActionSaveBrowse: () => store.dispatch(changeActiveAction('save', 'browse')),
-	chgActionUploadImgurAnon: () => store.dispatch(changeActiveAction('upload', 'imguranon')),
-	chgActionUploadImgur: () => store.dispatch(changeActiveAction('upload', 'imgur')),
+	// chgActionUploadImgurAnon: () => store.dispatch(changeActiveAction('upload', 'imguranon')),
+	// chgActionUploadImgur: () => store.dispatch(changeActiveAction('upload', 'imgur')),
 	chgActionUploadGfycatAnon: () => store.dispatch(changeActiveAction('upload', 'gfycatanon')),
 	chgActionUploadGfycat: () => store.dispatch(changeActiveAction('upload', 'gfycat')),
 	chgActionUploadYoutube: () => store.dispatch(changeActiveAction('upload', 'youtube')),

@@ -5,6 +5,21 @@ importScripts('resource://gre/modules/osfile.jsm');
 var core;
 var gBsComm;
 
+// build arguments for ffmpeg based on target conversion type
+var gConversionArgs = {
+	gif: [
+		'-i', 'input.webm',
+		'-t', '5',
+		'-pix_fmt', 'yuv420p', // for twitter - https://twittercommunity.com/t/unable-to-upload-video-to-twitter/61721/3
+		'-strict', '-2', 'output.gif'
+	],
+	mp4: [
+		'-i', 'input.webm',
+		'-pix_fmt', 'yuv420p', // for twitter - https://twittercommunity.com/t/unable-to-upload-video-to-twitter/61721/3
+		'-strict', '-2', 'output.mp4'
+	]
+};
+
 function dummyForInstantInstantiate() {}
 function init(objCore) {
 	//console.log('in worker init');
@@ -286,6 +301,13 @@ function action_gfycatanon(rec, aCallback) {
 			if (response.gfyItem) {
 				console.log('JSON.stringify(response):', JSON.stringify(response))
 				var { userName, mp4Url, webmUrl, gifUrl } = response.gfyItem;
+				gifurl= gifurl.replace('zippy.gfycat', 'giant.gfycat'); // otehrwise get access denied error
+
+				var log = {
+					i: response.gfyItem.gfyId,
+					x: undefined
+				};
+
 				aCallback({
 					ok: true,
 					gfyUrl: 'https://gfycat.com/' + gfyname,
@@ -404,24 +426,9 @@ function action_browse(rec, aCallback) {
 		} else {
 			console.log('converting to ' + ext);
 
-			// build arguments for ffmpeg based on target conversion type
-			var arguments = {
-				gif: [
-					'-i', 'input.webm',
-					'-t', '5',
-					'-pix_fmt', 'yuv420p', // for twitter - https://twittercommunity.com/t/unable-to-upload-video-to-twitter/61721/3
-					'-strict', '-2', 'output.gif'
-				],
-				mp4: [
-					'-i', 'input.webm',
-					'-pix_fmt', 'yuv420p', // for twitter - https://twittercommunity.com/t/unable-to-upload-video-to-twitter/61721/3
-					'-strict', '-2', 'output.mp4'
-				]
-			};
-
 			// convert it
 			var converted_files = ffmpeg_run({
-				arguments: arguments[ext],
+				arguments: gConversionArgs[ext],
 				files: [{ data:(new Uint8Array(rec.arrbuf)), name:'input.webm' }],
 				TOTAL_MEMORY: 268435456
 			});
@@ -485,6 +492,15 @@ function globalRecordComplete(aArg, aComm) {
 // End - Addon Functionality
 
 // start - common helper functions
+function formatBytes(bytes,decimals) {
+   if(bytes == 0) return '0 Byte';
+   var k = 1024; // or 1024 for binary
+   var dm = decimals + 1 || 3;
+   var sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+   var i = Math.floor(Math.log(bytes) / Math.log(k));
+   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
 function randomString(aLength) {
 	// http://stackoverflow.com/a/1349426/1828637
     var text = "";
