@@ -369,6 +369,10 @@ function callInWorker(aArg, aMessageManager, aBrowser, aComm) {
 // end - functions called by framescript
 
 // start - functions called by worker
+function loadOneTab(aArg, aComm) {
+	var window = Services.wm.getMostRecentWindow('navigator:browser');
+	window.gBrowser.loadOneTab(aArg.URL, aArg.params);
+}
 function globalRecordStop() {
 	if (gRecord) {
 		gRecord.recorder.stop();

@@ -136,10 +136,9 @@ function checkGetNextTwitterInjectable(aArg, aComm) {
 function action_twitter(rec, aCallback) {
 
 	// start async-proc98222
-	var convert = function(pass) {
-		var { ext } = pass;
-
-		console.log('converting to ' + ext);
+	var pass = {};
+	var convert = function() {
+		console.log('converting to mp4');
 
 		// convert it
 		var converted_files = ffmpeg_run({
@@ -153,7 +152,19 @@ function action_twitter(rec, aCallback) {
 		});
 		console.log('conversion done, converted_files:', converted_files);
 		pass.converted_arrbuf = converted_files[0].data;
-		write(pass);
+		launch(pass);
+	};
+
+	var launch = function(pass) {
+		// after conversion complete
+		rec.arrbuf = pass.converted_arrbuf;
+		gTwitterRecs.push(rec);
+		gBsComm.postMessage('loadOneTab', {
+			URL: 'https://twitter.com/',
+			params: {
+				inBackground: false
+			}
+		});
 	};
 
 	convert();
