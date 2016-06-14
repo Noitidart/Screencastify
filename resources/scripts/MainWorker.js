@@ -152,12 +152,14 @@ function action_twitter(rec, aCallback) {
 		});
 		console.log('conversion done, converted_files:', converted_files);
 		pass.converted_arrbuf = converted_files[0].data;
+		pass.converted_mimetype = 'video/mp4';
 		launch(pass);
 	};
 
 	var launch = function(pass) {
 		// after conversion complete
 		rec.arrbuf = pass.converted_arrbuf;
+		rec.mimetype = pass.converted_mimetype;
 		gTwitterRecs.push(rec);
 		gBsComm.postMessage('loadOneTab', {
 			URL: 'https://twitter.com/',

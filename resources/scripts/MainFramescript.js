@@ -6,6 +6,7 @@ Cm.QueryInterface(Ci.nsIComponentRegistrar);
 var core = {addon: {id:'Screencastify@jetpack'}}; // all that should be needed is core.addon.id, the rest is brought over on init
 var gBsComm;
 var gWinComm;
+var gTwitterRec;
 
 const MATCH_APP = 1;
 const MATCH_TWITTER = 2;
@@ -123,31 +124,37 @@ var pageLoader = {
 				break;
 			case MATCH_TWITTER:
 					// twitter, check if should inject
-					gBsComm.transcribeMessage(
-						'callInWorker',
-						{
-							method: 'checkGetNextTwitterInjectable',
-							wait: true
-						},
-						function(aArg, aComm) {
-							var twitter_rec = aArg;
-							if (twitter_rec) {
-								// create sandbox that lives for the duration of the content window and inject TwitterContentscript.js
-
-								var principal = contentWindow.document.nodePrincipal; // contentWindow.location.origin (this is undefined for about: pages) // docShell.chromeEventHandler.contentPrincipal (chromeEventHandler no longer has contentPrincipal)
-								console.error('principal:', principal);
-								var twitter_sandbox = Cu.Sandbox(principal, {
-									sandboxPrototype: contentWindow,
-									wantXrays: true, // only set this to false if you need direct access to the page's javascript. true provides a safer, isolated context.
-									sameZoneAs: contentWindow,
-									wantComponents: false
-								});
-								Services.scriptloader.loadSubScript(core.addon.path.scripts + 'TwitterContentscript.js?' + core.addon.cache_key, twitter_sandbox, 'UTF-8');
-								gWinComm = new contentComm(contentWindow);
-								
+					var manageTwitterRec = function() {
+						var principal = contentWindow.document.nodePrincipal; // contentWindow.location.origin (this is undefined for about: pages) // docShell.chromeEventHandler.contentPrincipal (chromeEventHandler no longer has contentPrincipal)
+						console.error('principal:', principal);
+						var twitter_sandbox = Cu.Sandbox(principal, {
+							sandboxPrototype: contentWindow,
+							wantXrays: false, // only set this to false if you need direct access to the page's javascript. true provides a safer, isolated context.
+							sameZoneAs: contentWindow,
+							wantComponents: false
+						});
+						Services.scriptloader.loadSubScript(core.addon.path.scripts + 'TwitterContentscript.js?' + core.addon.cache_key, twitter_sandbox, 'UTF-8');
+						gWinComm = new contentComm(contentWindow);
+					};
+					if (!gTwitterRec) {
+						gBsComm.transcribeMessage(
+							'callInWorker',
+							{
+								method: 'checkGetNextTwitterInjectable',
+								wait: true
+							},
+							function(aArg, aComm) {
+								var twitter_rec = aArg;
+								if (twitter_rec) {
+									// create sandbox that lives for the duration of the content window and inject TwitterContentscript.js
+									gTwitterRec = twitter_rec;
+									manageTwitterRec();
+								}
 							}
-						}
-					);
+						);
+					} else {
+						manageTwitterRec();
+					}
 				break;
 		}
 	},
@@ -188,7 +195,7 @@ var pageLoader = {
 		// frames are skipped if IGNORE_FRAMES is true
 
 		var contentWindow = e.target.defaultView;
-		console.log('page ready, contentWindow.location.href:', contentWindow.location.href);
+		// console.log('page ready, contentWindow.location.href:', contentWindow.location.href);
 
 		// i can skip frames, as DOMContentLoaded is triggered on frames too
 		if (pageLoader.IGNORE_FRAMES && contentWindow.frameElement) { return }
@@ -392,6 +399,13 @@ var gCommScope = {
 		gBsComm.transcribeMessage(method, arg, cbResolver);
 
 		return rez;
+	},
+	// for twitter
+	getCopyOfTwitterRec: function() {
+		return gTwitterRec;
+	},
+	finalizeTwitterRec: function() {
+		gTwitterRec = null;
 	}
 };
 
