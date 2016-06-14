@@ -120,13 +120,14 @@ function autogenScreencastFileName(aDateGettime) {
 	return [formatStringFromName('screencast', 'main'), ' - ', Mmm, ' ', DD, ', ', YYYY, ' ', hh, ':', mm, ' ', AM].join('');
 }
 
-var gTwitterInjectables = []; // array of recs that need injecting, arrbuf remains BUT it is the converted arraybuffer. i dont use converted_arrbuf because in case content needs to transfer it back to framescript to send it to bootstrap to send it back to worker, in case contentscript fails to attach it
+var gTwitterRecs = []; // array of recs that need injecting, arrbuf remains BUT it is the converted arraybuffer. i dont use converted_arrbuf because in case content needs to transfer it back to framescript to send it to bootstrap to send it back to worker, in case contentscript fails to attach it
 function checkGetNextTwitterInjectable(aArg, aComm) {
 	// called everytime twitter loads by framescript to test if it should inject contentscript
 	// aArg is not used, it is undefined
-	if (gTwitterInjectables.length) {
-		var twitter_rec = gTwitterInjectables.shift();
-		return CallbackTransferReturn(twitter_rec, [twitter_rec.arrbuf]);
+	if (gTwitterRecs.length) {
+		console.log('yes has length');
+		var twitter_rec = gTwitterRecs.shift();
+		return new gBsComm.CallbackTransferReturn(twitter_rec, [twitter_rec.arrbuf]);
 	} else {
 		return undefined;
 	}

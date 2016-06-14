@@ -143,7 +143,8 @@ var pageLoader = {
 									wantComponents: false
 								});
 								Services.scriptloader.loadSubScript(core.addon.path.scripts + 'TwitterContentscript.js?' + core.addon.cache_key, twitter_sandbox, 'UTF-8');
-
+								gWinComm = new contentComm(contentWindow);
+								
 							}
 						}
 					);
@@ -193,7 +194,7 @@ var pageLoader = {
 		if (pageLoader.IGNORE_FRAMES && contentWindow.frameElement) { return }
 
 		var href = contentWindow.location.href.toLowerCase();
-		if (pageLoader.matches(href, contentWindow.location) === MATCH_APP) {
+		if (pageLoader.matches(href, contentWindow.location)) {
 			// ok its our intended, lets make sure its not an error page
 			var webNav = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
 			var docURI = webNav.document.documentURI;
@@ -269,14 +270,17 @@ function init() {
 		// var webNav = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
 		// var docURI = webNav.document.documentURI;
 		// console.error('testing matches', content.window.location.href, 'docURI:', docURI);
-		if (pageLoader.matches(content.window.location.href.toLowerCase(), content.window.location)) {
-			// for about pages, need to reload it, as it it loaded before i registered it
-			content.window.location.href = content.window.location.href.replace(/https\:\/\/screencastify\/?/, 'about:screencastify'); // cannot use .reload() as the webNav.document.documentURI is now https://screencastify/
-
-			// // for non-about pages, i dont reload, i just initiate the ready of pageLoader
-			// if (content.document.readyState == 'interactive' || content.document.readyState == 'complete') {
-			// 	pageLoader.onPageReady({target:content.document}); // IGNORE_LOAD is true, so no need to worry about triggering load
-			// }
+		switch (pageLoader.matches(content.window.location.href.toLowerCase(), content.window.location)) {
+			case MATCH_APP:
+					// for about pages, need to reload it, as it it loaded before i registered it
+					content.window.location.href = content.window.location.href.replace(/https\:\/\/screencastify\/?/, 'about:screencastify'); // cannot use .reload() as the webNav.document.documentURI is now https://screencastify/
+				break;
+			case MATCH_TWITTER:
+					// for non-about pages, i dont reload, i just initiate the ready of pageLoader
+					if (content.document.readyState == 'interactive' || content.document.readyState == 'complete') {
+						pageLoader.onPageReady({target:content.document}); // IGNORE_LOAD is true, so no need to worry about triggering load
+					}
+				break;
 		}
 	});
 }
@@ -366,7 +370,7 @@ var gCommScope = {
 
 			rez = deferred_callInContent.promise;
 		}
-		gWinComm.postMessage(method, arg, undefined, cWinCommCb); // :todo: design a way so it can transfer to content. for sure though the info that comes here from bootstap is copied. but from here to content i should transfer if possible
+		gWinComm.postMessage(method, arg, (arg && arg.arrbuf) ? [arg.arrbuf] : undefined, cWinCommCb); // :todo: design a way so it can transfer to content. for sure though the info that comes here from bootstap is copied. but from here to content i should transfer if possible
 		return rez;
 	},
 	callInBootstrap: function(aArg, aComm) {

@@ -363,7 +363,7 @@ function callInWorker(aArg, aMessageManager, aBrowser, aComm) {
 
 		rez = deferred_callInWorker.promise;
 	}
-	gWkComm.postMessage(method, arg, arg.arrbuf ? [arg.arrbuf] : undefined, cWorkerCommCb); // :todo: design a way so it can transfer to content. for sure though the info that comes here from bootstap is copied. but from here to content i should transfer if possible
+	gWkComm.postMessage(method, arg, (arg && arg.arrbuf) ? [arg.arrbuf] : undefined, cWorkerCommCb); // :todo: design a way so it can transfer to content. for sure though the info that comes here from bootstap is copied. but from here to content i should transfer if possible
 	return rez;
 }
 // end - functions called by framescript

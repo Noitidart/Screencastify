@@ -70,6 +70,7 @@ function init() {
 }
 
 function uninit() {
+	// triggered by uninit of framescript - if i want to do something on unload of page i should create function unload() and addEventListener('unload', unload, false)
 	if (gURL) {
 		URL.revokeObjectURL(gURL);
 		console.error('revoked url of:', gURL);
