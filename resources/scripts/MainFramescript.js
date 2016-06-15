@@ -323,18 +323,19 @@ function dataURItoBlob(dataURI) {
 }
 
 function simDrop() {
-	if (content.location.href.includes('twitter.com')) {
+	// if (content.location.href.includes('twitter.com')) {
 		var b = dataURItoBlob('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACk0lEQVR4Xm2TzUtbQRTFz3v50NRAJFDUhdv8AWIpbdeCa0WNWhWJKMVVFpoqiAkiuinJxk0rxdJ2V7qzFaGF0m2QFG3Big3Jphra2sSYQr5u7xkwaOnAnffm3vObuXNnxhIRXG1ra2uBer0+qtat1kWfbdt7akm1lwsLC1+vAZyAtrKyYsVisfDS0lJpfn5eaNFo1NjlmDFqqL3kTKcia3l5+c3c3JwsLi7K7u6upFIpOTw8lKOjIzk4ODA+XV2ooZZMYwKFwtokkUjI/v6+nJycyNnZmRQKBTk/P5d8Pi+5XE6Oj48lHo8LtWTIOhUOVCqVVZfLhZ6eHrS3t8Pj8UDH3Htjm/Q1NTWhv78fGxsbKJfLq8pu2wqPlkolT29vL9ra2gzsdjpx8e49sqFppIOjyL96DSeAlpYW+Hw+DA8Pg4yyI07tuh0OB1pbW82qbrcbFx8+IvcoDlexCIfaz8hDoFKB//6IWaCjo8Nolb1lV6vVLq/Xa9LVYwPbr+cvDNwMgdcGPLUqCo+fgI06LuL3+0HWqR3Bxp4ty8Kfz1/g+JRCs8uBG06HCmuod3aSZ7xRG7K2iOxpxZmOmUjHuPlgBrW6oFyro6Awv76Z6UZBqTs9PQVZTE1NxcbGxmRnZ0fUKVpdqav9eLol327flcyde/J765nxsTHOu0FG2ShCoVBgYmKiNDs7y3M2Z66pyf8a/YxHIhEhQ9akND4+Hg4Gg7K+vi7ZbJYirmSAWq1GkGMDb25uCrVkyLIa3FNCj/JtMpmEToJ0Og3WRW8hisWi+WYyGb4X6FZBLZmrj4mXwxoaGgoPDAyU+vr6mCJTNfd/cnJS6GOMGmqvPqZrNjg4GFBhTK/stkLfafynj7F/9X8B/VwdKidGSOIAAAAASUVORK5CYII=')
 		var url = URL.createObjectURL(b);
 		console.log('url:', url);
 
 		var f = new content.File([b], 'i.png')
 
-		var richInputTweetMsg = content.document.getElementById('tweet-box-global');
+		// var richInputTweetMsg = content.document.getElementById('tweet-box-global');
+		var richInputTweetMsg = content.document.getElementById('js_13');
 
 		var evt = content.document.createEvent('DragEvents');
 		var dataTransfer = new content.DataTransfer('dragstart', false);
-		evt.initDragEvent('dragenter', true, true, content, 0, 1791, 215, 511, 147, false, false, false, false, 0, null, dataTransfer);
+		evt.initDragEvent('dragenter', true, true, content, 0, 1791, 215, 511, 147, false, false, false, false, 1, richInputTweetMsg, dataTransfer);
 		dataTransfer.effectAllowed = 'copyMove';
 
 		dataTransfer.mozSetDataAt('application/x-moz-file', f, 0);
@@ -346,7 +347,7 @@ function simDrop() {
 
 		var evt = content.document.createEvent('DragEvents');
 		var dataTransfer = new content.DataTransfer('dragstart', false);
-		evt.initDragEvent('dragover', true, true, content, 0, 1791, 215, 511, 147, false, false, false, false, 0, null, dataTransfer);
+		evt.initDragEvent('dragover', true, true, content, 0, 1791, 215, 511, 147, false, false, false, false, 1, richInputTweetMsg, dataTransfer);
 		dataTransfer.effectAllowed = 'copyMove';
 
 		dataTransfer.mozSetDataAt('application/x-moz-file', f, 0);
@@ -356,19 +357,21 @@ function simDrop() {
 		console.log('dataTransfer:', dataTransfer);
 		richInputTweetMsg.dispatchEvent(evt);
 
-		// var evt = content.document.createEvent('DragEvents');
-		// var dataTransfer = new content.DataTransfer('dragstart', false);
-		// evt.initDragEvent('drop', true, true, content, 0, 1791, 215, 511, 147, false, false, false, false, 0, null, dataTransfer);
-		// dataTransfer.effectAllowed = 'copyMove';
-		//
-		// dataTransfer.mozSetDataAt('application/x-moz-file', f, 0);
-		// dataTransfer.setData('text/uri-list', url);
-		// dataTransfer.setData('text/plain', url);
-		//
-		// console.log('dataTransfer:', dataTransfer);
-		// richInputTweetMsg.dispatchEvent(evt);
+		content.setTimeout(function(){
+			var evt = content.document.createEvent('DragEvents');
+			var dataTransfer = new content.DataTransfer('dragstart', false);
+			evt.initDragEvent('drop', true, true, content, 0, 1791, 215, 511, 147, false, false, false, false, 1, richInputTweetMsg, dataTransfer);
+			dataTransfer.effectAllowed = 'copyMove';
 
-	}
+			dataTransfer.mozSetDataAt('application/x-moz-file', f, 0);
+			dataTransfer.setData('text/uri-list', url);
+			dataTransfer.setData('text/plain', url);
+
+			console.log('dataTransfer:', dataTransfer);
+			richInputTweetMsg.dispatchEvent(evt);
+		}, 1000);
+
+	// }
 }
 
 function init() {

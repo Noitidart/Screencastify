@@ -21,7 +21,7 @@ function init() {
 			font-weight: bold;
 			width: 76vw;
 			height: 50px;
-			top: -50px;
+			bottom: -50px;
 			left: 12vw;
 			font-size: 16px;
 			color: #000;
@@ -29,7 +29,7 @@ function init() {
 		gCover.textContent = 'Screencastify - This tab is in the process of attaching screecast to a New Message'; // :l10n:
 		document.documentElement.insertBefore(gCover, document.documentElement.firstChild);
 		setTimeout(function() {
-			gCover.style.top = '0';
+			gCover.style.bottom = '0';
 		}, 100);
 
 		// var jqdoc = $(document);
@@ -58,15 +58,12 @@ function manage() {
 
 	gCover.style.cursor = '';
 	gCover.removeEventListener('click', manage, false);
-	gCover.textContent = 'Screencastify - New Tweet dialog opened. Attaching screencast...';
 
-	var btnNewTweet = document.getElementById('global-new-tweet-button');
-	if (!btnNewTweet) {
-		gCover.textContent = 'Screencastify - You are not logged in. Please login by clicking here.';
-		var btnLogin = document.querySelector('.js-login');
-		btnLogin.click();
+	var btnLogin = document.getElementById('loginbutton');
+	if (btnLogin) {
+		gCover.textContent = 'Screencastify - You are not logged in. Please login...';
 	} else {
-		btnNewTweet.click();
+
 	}
 }
 
