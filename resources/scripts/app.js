@@ -1021,8 +1021,16 @@ function contentComm(onHandshakeComplete) {
 	var scope = gContent;
 	var handshakeComplete = false; // indicates this.putMessage will now work
 	var port;
-	this.nextcbid = 1; // next callback id
+	this.nextcbid = 1; // next callback id // its important that min be 1, because lots of places i do a test if (cbid). and if min is 0, then if (cbid) will report a false negative, because indeed it has a cbid. basically i didnt do if ('cbid' in payload).
 	this.callbackReceptacle = {};
+	this.reportProgress = function(aProgressArg) {
+		// aProgressArg MUST be an object, devuser can set __PROGRESS:1 but doesnt have to, because i'll set it here if its not there
+		// this gets passed as thrid argument to each method that is called in the scope
+		// devuser MUST NEVER bind reportProgress. as it is bound to {THIS:this, cbid:cbid}
+		// devuser must set up the aCallback they pass to initial putMessage to handle being called with an object with key __PROGRESS:1 so they know its not the final reply to callback, but an intermediate progress update
+		aProgressArg.__PROGRESS = 1;
+		this.THIS.putMessage(this.cbid, aProgressArg);
+	};
 
 	this.listener = function(e) {
 		var payload = e.data;
@@ -1030,7 +1038,8 @@ function contentComm(onHandshakeComplete) {
 
 		if (payload.method) {
 			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in WINDOW'); throw new Error('method of "' + payload.method + '" not in WINDOW') } // dev line remove on prod
-			var rez_win_call = scope[payload.method](payload.arg, this);
+			var rez_win_call = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
 			console.log('content contentComm - rez_win_call:', rez_win_call);
 			if (payload.cbid) {
 				if (rez_win_call && rez_win_call.constructor.name == 'Promise') {
@@ -1048,7 +1057,9 @@ function contentComm(onHandshakeComplete) {
 		} else if (!payload.method && payload.cbid) {
 			// its a cbid
 			this.callbackReceptacle[payload.cbid](payload.arg, this);
-			delete this.callbackReceptacle[payload.cbid];
+			if (payload.arg && !payload.arg.__PROGRESS) {
+				delete this.callbackReceptacle[payload.cbid];
+			}
 		} else {
 			console.error('contentComm - invalid combination');
 			throw new Error('contentComm - invalid combination');

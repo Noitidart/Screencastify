@@ -1103,6 +1103,14 @@ function workerComm() {
 	var firstMethodCalled = false;
 	this.nextcbid = 1; // next callback id
 	this.callbackReceptacle = {};
+	this.reportProgress = function(aProgressArg) {
+		// aProgressArg MUST be an object, devuser can set __PROGRESS:1 but doesnt have to, because i'll set it here if its not there
+		// this gets passed as thrid argument to each method that is called in the scope
+		// devuser MUST NEVER bind reportProgress. as it is bound to {THIS:this, cbid:cbid}
+		// devuser must set up the aCallback they pass to initial putMessage to handle being called with an object with key __PROGRESS:1 so they know its not the final reply to callback, but an intermediate progress update
+		aProgressArg.__PROGRESS = 1;
+		this.THIS.putMessage(this.cbid, aProgressArg);
+	};
 	this.putMessage = function(aMethod, aArg, aCallback) {
 		// aMethod is a string - the method to call in bootstrap
 		// aCallback is a function - optional - it will be triggered in scope when aMethod is done calling
@@ -1156,7 +1164,8 @@ function workerComm() {
 			}
 			console.log('scope:', scope);
 			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') } // dev line remove on prod
-			var rez_worker_call_for_bs = scope[payload.method](payload.arg, this);
+			var rez_worker_call_for_bs = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
 			console.log('rez_worker_call_for_bs:', rez_worker_call_for_bs);
 			if (payload.cbid) {
 				if (rez_worker_call_for_bs && rez_worker_call_for_bs.constructor.name == 'Promise') {
@@ -1179,7 +1188,9 @@ function workerComm() {
 		} else if (!payload.method && payload.cbid) {
 			// its a cbid
 			this.callbackReceptacle[payload.cbid](payload.arg, this);
-			delete this.callbackReceptacle[payload.cbid];
+			if (payload.arg && !payload.arg.__PROGRESS) {
+				delete this.callbackReceptacle[payload.cbid];
+			}
 		} else {
 			console.error('worker workerComm - invalid combination');
 			throw new Error('worker workerComm - invalid combination');

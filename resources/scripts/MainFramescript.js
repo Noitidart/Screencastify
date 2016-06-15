@@ -380,6 +380,14 @@ function crossprocComm(aChannelId) {
 	var scope = gCommScope;
 	this.nextcbid = 1; // next callback id // doesnt have to be defined on this. but i do it so i can check nextcbid from debug sources
 	this.callbackReceptacle = {};
+	this.reportProgress = function(aProgressArg) {
+		// aProgressArg MUST be an object, devuser can set __PROGRESS:1 but doesnt have to, because i'll set it here if its not there
+		// this gets passed as thrid argument to each method that is called in the scope
+		// devuser MUST NEVER bind reportProgress. as it is bound to {THIS:this, cbid:cbid}
+		// devuser must set up the aCallback they pass to initial putMessage to handle being called with an object with key __PROGRESS:1 so they know its not the final reply to callback, but an intermediate progress update
+		aProgressArg.__PROGRESS = 1;
+		this.THIS.putMessage(this.cbid, aProgressArg);
+	};
 
 	gCrossprocComms.push(this);
 
@@ -405,7 +413,8 @@ function crossprocComm(aChannelId) {
 
 			if (payload.method) {
 				if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') }  // dev line remove on prod
-				var rez_bs_call = scope[payload.method](payload.arg, messageManager, browser, this); // only on bootstrap side, they get extra 2 args
+				var rez_bs_call = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+				// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
 				if (payload.cbid) {
 					if (rez_bs_call && rez_bs_call.constructor.name == 'Promise') {
 						rez_bs_call.then(
@@ -423,7 +432,9 @@ function crossprocComm(aChannelId) {
 			} else if (!payload.method && payload.cbid) {
 				// its a cbid
 				this.callbackReceptacle[payload.cbid](payload.arg, messageManager, browser, this);
-				delete this.callbackReceptacle[payload.cbid];
+				if (payload.arg && !payload.arg.__PROGRESS) {
+					delete this.callbackReceptacle[payload.cbid];
+				}
 			} else {
 				console.error('framesript - crossprocComm - invalid combination, payload:', payload);
 				throw new Error('framesript - crossprocComm - invalid combination');
@@ -475,6 +486,14 @@ function contentComm(aContentWindow, onHandshakeComplete) { // framescript versi
 
 	this.nextcbid = 1; // next callback id // doesnt have to be defined on this. but i do it so i can check nextcbid from debug sources
 	this.callbackReceptacle = {};
+	this.reportProgress = function(aProgressArg) {
+		// aProgressArg MUST be an object, devuser can set __PROGRESS:1 but doesnt have to, because i'll set it here if its not there
+		// this gets passed as thrid argument to each method that is called in the scope
+		// devuser MUST NEVER bind reportProgress. as it is bound to {THIS:this, cbid:cbid}
+		// devuser must set up the aCallback they pass to initial putMessage to handle being called with an object with key __PROGRESS:1 so they know its not the final reply to callback, but an intermediate progress update
+		aProgressArg.__PROGRESS = 1;
+		this.THIS.putMessage(this.cbid, aProgressArg);
+	};
 
 	this.listener = function(e) {
 		var payload = e.data;
@@ -489,7 +508,8 @@ function contentComm(aContentWindow, onHandshakeComplete) { // framescript versi
 				return;
 			}
 			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') } // dev line remove on prod
-			var rez_fs_call_for_win = scope[payload.method](payload.arg, this);
+			var rez_fs_call_for_win = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
 			console.log('rez_fs_call_for_win:', rez_fs_call_for_win);
 			if (payload.cbid) {
 				if (rez_fs_call_for_win && rez_fs_call_for_win.constructor.name == 'Promise') {
@@ -508,7 +528,9 @@ function contentComm(aContentWindow, onHandshakeComplete) { // framescript versi
 		} else if (!payload.method && payload.cbid) {
 			// its a cbid
 			this.callbackReceptacle[payload.cbid](payload.arg, this);
-			delete this.callbackReceptacle[payload.cbid];
+			if (payload.arg && !payload.arg.__PROGRESS) {
+				delete this.callbackReceptacle[payload.cbid];
+			}
 		} else {
 			throw new Error('invalid combination');
 		}
