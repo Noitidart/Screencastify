@@ -1200,6 +1200,11 @@ function workerComm() {
 	self.onmessage = this.listener;
 }
 // end - CommAPI for bootstrap-worker - worker side - cross-file-link5323131347
+// CommAPI Abstraction - worker side
+// there is no callInContent, callInFramescript, callInContentOfFramescript here because worker only responds to calls made by those things. but worker may need to talk to bootstrap hence the callInBootstrap
+function callInBootstrap(aMethod, aArg, aCallback) {
+	gBsComm.putMessage(aMethod, aArg, aCallback);
+}
 // end - CommAPI
 // end - common helper functions
 

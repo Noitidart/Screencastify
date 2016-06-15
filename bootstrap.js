@@ -975,6 +975,55 @@ function workerComm(aWorkerPath, onBeforeInit, onAfterInit, aWebWorker) {
 	}.bind(this);
 }
 // end - CommAPI for bootstrap-worker - bootstrap side - cross-file-link5323131347
+// CommAPI Abstraction - bootstrap side
+function callInFramescript(aMessageManager, aMethod, aArg, aCallback) {
+	// only bootstrap calls this
+	gFsComm.transcribeMessage(aMessageManager, aMethod, aArg, aCallback);
+}
+function callInContentOfFramescript(aMessageManager, aMethod, aArg, aCallback) {
+	gFsComm.transcribeMessage(aMessageManager, 'callInContent', {
+		m: aMethod,
+		a: aArg
+	}, aCallback);
+}
+function callInContent(aWinComm, aMethod, aArg, aCallback) {
+	// only bootstrap call
+	aWinComm.postMessage(aMethod, aArg, aCallback);
+}
+function callInWorker(aMethod, aArg, aCallback, aExtra1, aExtra2) {
+	if (aMethod.constructor.name == 'Object') {
+		// framescript or content (NOT contentOfFramescript) called this
+		if (arguments.length == 3) {
+			// called by content - 3 args - scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			var aComm = aArg;
+			var aReportProgress = aCallback;
+		} else if (arguments.length == 5) {
+			// called by framescript - 5 args - scope[payload.method](payload.arg, messageManager, browser, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			var aMessageManager = aArg;
+			var aBrowser = aCallback;
+			var aComm = aExtra1;
+			var aReportProgress = aExtra2;
+		}
+		else { console.error('arguments.length is ' + arguments.length + ' i didnt handle who calls it with this much'); throw new Error('arguments.length is ' + arguments.length + ' i didnt handle who calls it with this much'); }
+		var {m:aMethod, a:aArg} = aMethod;
+
+		if (aReportProgress) { // if (wait) { // if it has aReportProgress then the scope has a callback waiting for reply
+			var deferred = new Deferred();
+			gWkComm.putMessage(aMethod, aArg, function(rez) {
+				if (rez && rez.__PROGRESS) {
+					aReportProgress(rez);
+				} else {
+					deferred.resolve(rez);
+				}
+			});
+			return deferred.promise;
+		} else {
+			gWkComm.postMessage(aMethod, aArg);
+		}
+	} else {
+		gWkComm.postMessage(aMethod, aArg, aCallback);
+	}
+}
 // end - CommAPI
 
 // end - common helper functions

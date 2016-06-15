@@ -1130,6 +1130,24 @@ function contentComm(onHandshakeComplete) {
 
 }
 // end - CommAPI for bootstrap-content - content side - cross-file-link0048958576532536411
+// CommAPI Abstraction - content side
+function callInFramescript(aMethod, aArg, aCallback) {
+	gFsComm.putMessage(aMethod, aArg, aCallback);
+}
+function callInBootstrap(aMethod, aArg, aCallback) {
+	gFsComm.putMessage('callInBootstrap', {
+		m: aMethod,
+		a: aArg
+	},
+	aCallback);
+}
+function callInWorker(aMethod, aArg, aCallback) {
+	gFsComm.putMessage('callInWorker', {
+		m: aMethod,
+		a: aArg
+	},
+	aCallback);
+}
 // end - CommAPI
 // end - common helper functions
 
