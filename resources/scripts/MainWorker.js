@@ -173,6 +173,61 @@ function action_twitter(rec, aCallback) {
 	// end async-proc98222
 }
 
+var gFacebookRecs = [{arrbuf:new ArrayBuffer(10), mimetype:'video/webm'}]; // array of recs that need injecting, arrbuf remains BUT it is the converted arraybuffer. i dont use converted_arrbuf because in case content needs to transfer it back to framescript to send it to bootstrap to send it back to worker, in case contentscript fails to attach it
+function checkGetNextFacebookInjectable(aArg, aComm) {
+	// called everytime twitter loads by framescript to test if it should inject contentscript
+	// aArg is not used, it is undefined
+	if (gFacebookRecs.length) {
+		console.log('yes has length');
+		var facebook_rec = gFacebookRecs.shift();
+		return new gBsComm.CallbackTransferReturn(facebook_rec, [facebook_rec.arrbuf]);
+	} else {
+		return undefined;
+	}
+}
+
+function action_facebook(rec, aCallback) {
+
+	// start async-proc98222
+	var pass = {};
+	var convert = function() {
+		console.log('converting to mp4');
+
+		// convert it
+		// var converted_files = ffmpeg_run({
+		// 	arguments: [
+		// 		'-i', 'input.webm',
+		// 		'-vf', 'showinfo',
+		// 		'-strict', '-2', 'output.mp4'
+		// 	],
+		// 	files: [{ data:(new Uint8Array(rec.arrbuf)), name:'input.webm' }],
+		// 	TOTAL_MEMORY: 536870912
+		// });
+		// console.log('conversion done, converted_files:', converted_files);
+		// pass.converted_arrbuf = converted_files[0].data;
+		// pass.converted_mimetype = 'video/mp4';
+		pass.converted_arrbuf = rec.arrbuf;
+		pass.converted_mimetype = 'video/webm';
+		launch(pass);
+	};
+
+	var launch = function(pass) {
+		// after conversion complete
+		rec.arrbuf = pass.converted_arrbuf;
+		rec.mimetype = pass.converted_mimetype;
+		gFacebookRecs.push(rec);
+		gBsComm.postMessage('loadOneTab', {
+			URL: 'https://www.facebook.com',
+			params: {
+				inBackground: false
+			}
+		});
+	};
+
+	convert();
+	// end async-proc98222
+}
+
 function action_gfycatanon(rec, aCallback) {
 	// start async-proc938
 

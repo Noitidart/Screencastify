@@ -7,9 +7,11 @@ var core = {addon: {id:'Screencastify@jetpack'}}; // all that should be needed i
 var gBsComm;
 var gWinComm;
 var gTwitterRec;
+var gFacebookRec;
 
 const MATCH_APP = 1;
 const MATCH_TWITTER = 2;
+const MATCH_FACEBOOK = 3;
 
 // start - about module
 var aboutFactory_screencastify;
@@ -79,6 +81,8 @@ var pageLoader = {
 			return MATCH_APP;
 		} else if (aLocation.host.toLowerCase() == 'twitter.com') {
 			return MATCH_TWITTER;
+		} else if (aLocation.host.toLowerCase().includes('facebook.com')) {
+			return MATCH_FACEBOOK;
 		}
 	},
 	ready: function(aContentWindow) {
@@ -154,6 +158,40 @@ var pageLoader = {
 						);
 					} else {
 						manageTwitterRec();
+					}
+				break;
+			case MATCH_FACEBOOK:
+					// twitter, check if should inject
+					var manageFacebookRec = function() {
+						var principal = contentWindow.document.nodePrincipal; // contentWindow.location.origin (this is undefined for about: pages) // docShell.chromeEventHandler.contentPrincipal (chromeEventHandler no longer has contentPrincipal)
+						console.error('principal:', principal);
+						var facebook_sandbox = Cu.Sandbox(principal, {
+							sandboxPrototype: contentWindow,
+							wantXrays: false, // only set this to false if you need direct access to the page's javascript. true provides a safer, isolated context.
+							sameZoneAs: contentWindow,
+							wantComponents: false
+						});
+						Services.scriptloader.loadSubScript(core.addon.path.scripts + 'FacebookContentscript.js?' + core.addon.cache_key, facebook_sandbox, 'UTF-8');
+						gWinComm = new contentComm(contentWindow);
+					};
+					if (!gFacebookRec) {
+						gBsComm.transcribeMessage(
+							'callInWorker',
+							{
+								method: 'checkGetNextFacebookInjectable',
+								wait: true
+							},
+							function(aArg, aComm) {
+								var facebook_rec = aArg;
+								if (facebook_rec) {
+									// create sandbox that lives for the duration of the content window and inject TwitterContentscript.js
+									gFacebookRec = facebook_rec;
+									manageFacebookRec();
+								}
+							}
+						);
+					} else {
+						manageFacebookRec();
 					}
 				break;
 		}
@@ -258,6 +296,80 @@ var pageLoader = {
 	// end - BOILERLATE - DO NOT EDIT
 };
 // end - pageLoader
+Cu.importGlobalProperties(['atob', 'Blob', 'File', 'URL'])
+function dataURItoBlob(dataURI) {
+  // convert base64 to raw binary data held in a string
+  // doesn't handle URLEncoded DataURIs - see SO answer #6850276 for code that does this
+  var byteString = atob(dataURI.split(',')[1]);
+
+  // separate out the mime component
+  var mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0]
+
+  // write the bytes of the string to an ArrayBuffer
+  var ab = new ArrayBuffer(byteString.length);
+  var ia = new Uint8Array(ab);
+  for (var i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+  }
+
+  // write the ArrayBuffer to a blob, and you're done
+  var blob = new Blob([ab], {type: mimeString});
+  return blob;
+
+  // Old code
+  // var bb = new BlobBuilder();
+  // bb.append(ab);
+  // return bb.getBlob(mimeString);
+}
+
+function simDrop() {
+	if (content.location.href.includes('twitter.com')) {
+		var b = dataURItoBlob('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACk0lEQVR4Xm2TzUtbQRTFz3v50NRAJFDUhdv8AWIpbdeCa0WNWhWJKMVVFpoqiAkiuinJxk0rxdJ2V7qzFaGF0m2QFG3Big3Jphra2sSYQr5u7xkwaOnAnffm3vObuXNnxhIRXG1ra2uBer0+qtat1kWfbdt7akm1lwsLC1+vAZyAtrKyYsVisfDS0lJpfn5eaNFo1NjlmDFqqL3kTKcia3l5+c3c3JwsLi7K7u6upFIpOTw8lKOjIzk4ODA+XV2ooZZMYwKFwtokkUjI/v6+nJycyNnZmRQKBTk/P5d8Pi+5XE6Oj48lHo8LtWTIOhUOVCqVVZfLhZ6eHrS3t8Pj8UDH3Htjm/Q1NTWhv78fGxsbKJfLq8pu2wqPlkolT29vL9ra2gzsdjpx8e49sqFppIOjyL96DSeAlpYW+Hw+DA8Pg4yyI07tuh0OB1pbW82qbrcbFx8+IvcoDlexCIfaz8hDoFKB//6IWaCjo8Nolb1lV6vVLq/Xa9LVYwPbr+cvDNwMgdcGPLUqCo+fgI06LuL3+0HWqR3Bxp4ty8Kfz1/g+JRCs8uBG06HCmuod3aSZ7xRG7K2iOxpxZmOmUjHuPlgBrW6oFyro6Awv76Z6UZBqTs9PQVZTE1NxcbGxmRnZ0fUKVpdqav9eLol327flcyde/J765nxsTHOu0FG2ShCoVBgYmKiNDs7y3M2Z66pyf8a/YxHIhEhQ9akND4+Hg4Gg7K+vi7ZbJYirmSAWq1GkGMDb25uCrVkyLIa3FNCj/JtMpmEToJ0Og3WRW8hisWi+WYyGb4X6FZBLZmrj4mXwxoaGgoPDAyU+vr6mCJTNfd/cnJS6GOMGmqvPqZrNjg4GFBhTK/stkLfafynj7F/9X8B/VwdKidGSOIAAAAASUVORK5CYII=')
+		var url = URL.createObjectURL(b);
+		console.log('url:', url);
+
+		var f = new content.File([b], 'i.png')
+
+		var richInputTweetMsg = content.document.getElementById('tweet-box-global');
+
+		var evt = content.document.createEvent('DragEvents');
+		var dataTransfer = new content.DataTransfer('dragstart', false);
+		evt.initDragEvent('dragenter', true, true, content, 0, 1791, 215, 511, 147, false, false, false, false, 0, null, dataTransfer);
+		dataTransfer.effectAllowed = 'copyMove';
+
+		dataTransfer.mozSetDataAt('application/x-moz-file', f, 0);
+		dataTransfer.setData('text/uri-list', url);
+		dataTransfer.setData('text/plain', url);
+
+		console.log('dataTransfer:', dataTransfer);
+		richInputTweetMsg.dispatchEvent(evt);
+
+		var evt = content.document.createEvent('DragEvents');
+		var dataTransfer = new content.DataTransfer('dragstart', false);
+		evt.initDragEvent('dragover', true, true, content, 0, 1791, 215, 511, 147, false, false, false, false, 0, null, dataTransfer);
+		dataTransfer.effectAllowed = 'copyMove';
+
+		dataTransfer.mozSetDataAt('application/x-moz-file', f, 0);
+		dataTransfer.setData('text/uri-list', url);
+		dataTransfer.setData('text/plain', url);
+
+		console.log('dataTransfer:', dataTransfer);
+		richInputTweetMsg.dispatchEvent(evt);
+
+		// var evt = content.document.createEvent('DragEvents');
+		// var dataTransfer = new content.DataTransfer('dragstart', false);
+		// evt.initDragEvent('drop', true, true, content, 0, 1791, 215, 511, 147, false, false, false, false, 0, null, dataTransfer);
+		// dataTransfer.effectAllowed = 'copyMove';
+		//
+		// dataTransfer.mozSetDataAt('application/x-moz-file', f, 0);
+		// dataTransfer.setData('text/uri-list', url);
+		// dataTransfer.setData('text/plain', url);
+		//
+		// console.log('dataTransfer:', dataTransfer);
+		// richInputTweetMsg.dispatchEvent(evt);
+
+	}
+}
 
 function init() {
 	gBsComm = new crossprocComm(core.addon.id);
@@ -352,6 +464,7 @@ function genericCatch(aPromiseName, aPromiseToReject, aCaught) {
 
 var gCFMM = this;
 var gCommScope = {
+	simDrop,
 	UNINIT_FRAMESCRIPT: function() { // link4757484773732
 		// called by bootstrap - but i guess content can call it too, but i dont see it ever wanting to
 		console.error('doing UNINIT_FRAMESCRIPT');
@@ -406,6 +519,13 @@ var gCommScope = {
 	},
 	finalizeTwitterRec: function() {
 		gTwitterRec = null;
+	},
+	// for facebook
+	getCopyOfFacebookRec: function() {
+		return gFacebookRec;
+	},
+	finalizeFacebookRec: function() {
+		gFacebookRec = null;
 	}
 };
 
