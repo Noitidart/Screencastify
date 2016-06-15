@@ -127,7 +127,8 @@ function checkGetNextTwitterInjectable(aArg, aComm) {
 	if (gTwitterRecs.length) {
 		console.log('yes has length');
 		var twitter_rec = gTwitterRecs.shift();
-		return new gBsComm.CallbackTransferReturn(twitter_rec, [twitter_rec.arrbuf]);
+		twitter_rec.__XFER = {arrbuf:0};
+		return twitter_rec;
 	} else {
 		return undefined;
 	}
@@ -161,7 +162,7 @@ function action_twitter(rec, aCallback) {
 		rec.arrbuf = pass.converted_arrbuf;
 		rec.mimetype = pass.converted_mimetype;
 		gTwitterRecs.push(rec);
-		gBsComm.postMessage('loadOneTab', {
+		gBsComm.putMessage('loadOneTab', {
 			URL: 'https://twitter.com/',
 			params: {
 				inBackground: false
@@ -180,7 +181,8 @@ function checkGetNextFacebookInjectable(aArg, aComm) {
 	if (gFacebookRecs.length) {
 		console.log('yes has length');
 		var facebook_rec = gFacebookRecs.shift();
-		return new gBsComm.CallbackTransferReturn(facebook_rec, [facebook_rec.arrbuf]);
+		facebook_rec.__XFER = {arrbuf:0};
+		return facebook_rec;
 	} else {
 		return undefined;
 	}
@@ -216,7 +218,7 @@ function action_facebook(rec, aCallback) {
 		rec.arrbuf = pass.converted_arrbuf;
 		rec.mimetype = pass.converted_mimetype;
 		gFacebookRecs.push(rec);
-		gBsComm.postMessage('loadOneTab', {
+		gBsComm.putMessage('loadOneTab', {
 			URL: 'https://www.facebook.com',
 			params: {
 				inBackground: false
@@ -491,7 +493,7 @@ function action_browse(rec, aCallback) {
 	// start async-proc0003
 	var browse = function() {
 		var file_ext = rec.mimetype.substr(rec.mimetype.indexOf('/')+1);
-		gBsComm.postMessage(
+		gBsComm.putMessage(
 			'browseFile',
 			{
 				aDialogTitle: formatStringFromName('dialog_save_title', 'main'),
@@ -508,7 +510,6 @@ function action_browse(rec, aCallback) {
 					returnDetails: true
 				}
 			},
-			undefined,
 			function(aArg, aComm) {
 				if (!aArg) {
 					aCallback({
@@ -593,14 +594,14 @@ function processAction(aArg, aComm) {
 
 function globalRecordNew(aArg, aComm) {
 	var id = createStore();
-	gBsComm.postMessage('globalRecordStart', { id });
+	gBsComm.putMessage('globalRecordStart', { id });
 }
 function globalRecordComplete(aArg, aComm) {
 	var { id, arrbuf } = aArg;
 	var store = getStore(id);
 
 	store.arrbuf = arrbuf;
-	gBsComm.postMessage('manageSingle')
+	gBsComm.putMessage('manageSingle')
 }
 // end - functions called by bootstrap
 
@@ -674,7 +675,7 @@ function getSystemDirectory(type) {
 
 		switch (route) {
 			case TYPE_ROUTE_BOOTSTRAP:
-					gBsComm.postMessage('getSystemDirectory_bootstrap', type, undefined, function(path) {
+					gBsComm.putMessage('getSystemDirectory_bootstrap', type, function(path) {
 						deferredMain_getSystemDirectory.resolve(path);
 					});
 				break;
@@ -1102,21 +1103,10 @@ function workerComm() {
 	var firstMethodCalled = false;
 	this.nextcbid = 1; // next callback id
 	this.callbackReceptacle = {};
-	this.CallbackTransferReturn = function(aArg, aTransfers) {
-		// aTransfers should be an array
-		this.arg = aArg;
-		this.xfer = aTransfers;
-	};
-	this.postMessage = function(aMethod, aArg, aTransfers, aCallback) {
+	this.putMessage = function(aMethod, aArg, aCallback) {
 		// aMethod is a string - the method to call in bootstrap
 		// aCallback is a function - optional - it will be triggered in scope when aMethod is done calling
 
-		if (aArg && aArg.constructor == this.CallbackTransferReturn) {
-			// aTransfers is undefined
-			// i needed to create CallbackTransferReturn so that callbacks can transfer data back
-			aTransfers = aArg.xfer;
-			aArg = aArg.arg;
-		}
 		var cbid = null;
 		if (typeof(aMethod) == 'number') {
 			// this is a response to a callack waiting in framescript
@@ -1129,11 +1119,29 @@ function workerComm() {
 			}
 		}
 
+		var aTransfers;
+		if (aArg && aArg.__XFER) {
+			// if want to transfer stuff aArg MUST be an object, with a key __XFER holding the keys that should be transferred
+			// __XFER is either array or object. if array it is strings of the keys that should be transferred. if object, the keys should be names of the keys to transfer and values can be anything
+			aTransfers = [];
+			var __XFER = aArg.__XFER;
+			if (Array.isArray(__XFER)) {
+				for (var p of __XFER) {
+					aTransfers.push(aArg[p]);
+				}
+			} else {
+				// assume its an object
+				for (var p in __XFER) {
+					aTransfers.push(aArg[p]);
+				}
+			}
+		}
+
 		self.postMessage({
 			method: aMethod,
 			arg: aArg,
 			cbid
-		}, aTransfers ? aTransfers : undefined);
+		}, aTransfers);
 	};
 	this.listener = function(e) {
 		var payload = e.data;
@@ -1143,7 +1151,7 @@ function workerComm() {
 			if (!firstMethodCalled) {
 				firstMethodCalled = true;
 				if (payload.method != 'init' && scope.init) {
-					this.postMessage('triggerOnAfterInit', scope.init(undefined, this));
+					this.putMessage('triggerOnAfterInit', scope.init(undefined, this));
 				}
 			}
 			console.log('scope:', scope);
@@ -1155,18 +1163,18 @@ function workerComm() {
 					rez_worker_call_for_bs.then(
 						function(aVal) {
 							console.log('Fullfilled - rez_worker_call_for_bs - ', aVal);
-							this.postMessage(payload.cbid, aVal);
+							this.putMessage(payload.cbid, aVal);
 						}.bind(this),
 						genericReject.bind(null, 'rez_worker_call_for_bs', 0)
 					).catch(genericCatch.bind(null, 'rez_worker_call_for_bs', 0));
 				} else {
-					console.log('calling postMessage for callback with rez_worker_call_for_bs:', rez_worker_call_for_bs, 'this:', this);
-					this.postMessage(payload.cbid, rez_worker_call_for_bs);
+					console.log('calling putMessage for callback with rez_worker_call_for_bs:', rez_worker_call_for_bs, 'this:', this);
+					this.putMessage(payload.cbid, rez_worker_call_for_bs);
 				}
 			}
 			// gets here on programtic init, as it for sure does not have a callback
 			if (payload.method == 'init') {
-				this.postMessage('triggerOnAfterInit', rez_worker_call_for_bs);
+				this.putMessage('triggerOnAfterInit', rez_worker_call_for_bs);
 			}
 		} else if (!payload.method && payload.cbid) {
 			// its a cbid

@@ -39,7 +39,7 @@ function getPage() {
 getPage();
 
 function init() {
-	gFsComm.postMessage('callInBootstrap', {method:'fetchCore',wait:true}, null, function(aCore) {
+	gFsComm.putMessage('callInBootstrap', {method:'fetchCore',wait:true}, function(aCore) {
 		console.log('core:', aCore);
 		core = aCore;
 
@@ -510,6 +510,7 @@ function processAction(aArg) {
 		aArg.arrbuf = this.result;
 		aArg.mimetype = gBlob.type;
 		aArg.time = gTime;
+		aArg.__XFER = {arrbuf:0};
 
 		callInWorker('processAction', aArg, function(status) {
 			console.log('back in window after calling processAction, resulting status:', status);
@@ -523,7 +524,7 @@ function processAction(aArg) {
 
 function callInWorker(method, arg, aCallback) {
 	// for use by this scope - window scope
-	gFsComm.postMessage('callInBootstrap', {
+	gFsComm.putMessage('callInBootstrap', {
 		method: 'callInWorker',
 		arg: {
 			method,
@@ -531,7 +532,7 @@ function callInWorker(method, arg, aCallback) {
 			wait: aCallback ? true : false
 		},
 		wait: aCallback ? true : false
-	}, arg.arrbuf ? [arg.arrbuf] : undefined, aCallback);
+	}, aCallback);
 }
 
 var ManageRecordingPage = React.createClass({
@@ -1016,18 +1017,13 @@ var gContent = this;
 
 // start - CommAPI for bootstrap-content - loadSubScript-sandbox side - cross-file-link0048958576532536411
 function contentComm(onHandshakeComplete) {
-	// onHandshakeComplete is triggerd when handshake completed and this.postMessage becomes usable
+	// onHandshakeComplete is triggerd when handshake completed and this.putMessage becomes usable
 	var scope = gContent;
-	var handshakeComplete = false; // indicates this.postMessage will now work
+	var handshakeComplete = false; // indicates this.putMessage will now work
 	var port;
 	this.nextcbid = 1; // next callback id
 	this.callbackReceptacle = {};
 
-	this.CallbackTransferReturn = function(aArg, aTransfers) {
-		// aTransfers should be an array
-		this.arg = aArg;
-		this.xfer = aTransfers
-	};
 	this.listener = function(e) {
 		var payload = e.data;
 		console.log('content contentComm - incoming, payload:', payload); // , 'e:', e, 'this:', this);
@@ -1041,12 +1037,12 @@ function contentComm(onHandshakeComplete) {
 					rez_win_call.then(
 						function(aVal) {
 							console.log('Fullfilled - rez_win_call - ', aVal);
-							this.postMessage(payload.cbid, aVal);
+							this.putMessage(payload.cbid, aVal);
 						}.bind(this),
 						genericReject.bind(null, 'rez_win_call', 0)
 					).catch(genericCatch.bind(null, 'rez_win_call', 0));
 				} else {
-					this.postMessage(payload.cbid, rez_win_call);
+					this.putMessage(payload.cbid, rez_win_call);
 				}
 			}
 		} else if (!payload.method && payload.cbid) {
@@ -1058,15 +1054,26 @@ function contentComm(onHandshakeComplete) {
 			throw new Error('contentComm - invalid combination');
 		}
 	}.bind(this);
-	this.postMessage = function(aMethod, aArg, aTransfers, aCallback) {
+	this.putMessage = function(aMethod, aArg, aCallback) {
 
 		// aMethod is a string - the method to call in framescript
 		// aCallback is a function - optional - it will be triggered when aMethod is done calling
-		if (aArg && aArg.constructor == this.CallbackTransferReturn) {
-			// aTransfers is undefined - this is the assumption as i use it prorgramtic
-			// i needed to create CallbackTransferReturn so that callbacks can transfer data back
-			aTransfers = aArg.xfer;
-			aArg = aArg.arg;
+		var aTransfers;
+		if (aArg && aArg.__XFER) {
+			// if want to transfer stuff aArg MUST be an object, with a key __XFER holding the keys that should be transferred
+			// __XFER is either array or object. if array it is strings of the keys that should be transferred. if object, the keys should be names of the keys to transfer and values can be anything
+			aTransfers = [];
+			var __XFER = aArg.__XFER;
+			if (Array.isArray(__XFER)) {
+				for (var p of __XFER) {
+					aTransfers.push(aArg[p]);
+				}
+			} else {
+				// assume its an object
+				for (var p in __XFER) {
+					aTransfers.push(aArg[p]);
+				}
+			}
 		}
 		var cbid = null;
 		if (typeof(aMethod) == 'number') {
@@ -1085,7 +1092,7 @@ function contentComm(onHandshakeComplete) {
 			method: aMethod,
 			arg: aArg,
 			cbid
-		}, aTransfers ? aTransfers : undefined);
+		}, aTransfers);
 	};
 
 	var winMsgListener = function(e) {
@@ -1097,7 +1104,7 @@ function contentComm(onHandshakeComplete) {
 					window.removeEventListener('message', winMsgListener, false);
 					port = data.port2;
 					port.onmessage = this.listener;
-					this.postMessage('contentComm_handshake_finalized');
+					this.putMessage('contentComm_handshake_finalized');
 					handshakeComplete = true;
 					if (onHandshakeComplete) {
 						onHandshakeComplete(true);
@@ -1115,4 +1122,4 @@ function contentComm(onHandshakeComplete) {
 // end - CommAPI
 // end - common helper functions
 
-gFsComm = new contentComm(init); // the onHandshakeComplete of initPage will trigger AFTER DOMContentLoaded because MainFramescript only does aContentWindow.postMessage for its new contentComm after DOMContentLoaded see cross-file-link884757009. so i didnt test, but i by doing this here i am registering the contentWindow.addEventListener('message', ...) before it posts. :TODO: i should test what happens if i send message to content first, and then setup listener after, i should see if the content gets that message (liek if it was waiting for a message listener to be setup, would be wonky if its like this but cool) // i have to do this after `var gContent = window` otherwise gContent is undefined
+gFsComm = new contentComm(init); // the onHandshakeComplete of initPage will trigger AFTER DOMContentLoaded because MainFramescript only does aContentWindow.putMessage for its new contentComm after DOMContentLoaded see cross-file-link884757009. so i didnt test, but i by doing this here i am registering the contentWindow.addEventListener('message', ...) before it posts. :TODO: i should test what happens if i send message to content first, and then setup listener after, i should see if the content gets that message (liek if it was waiting for a message listener to be setup, would be wonky if its like this but cool) // i have to do this after `var gContent = window` otherwise gContent is undefined

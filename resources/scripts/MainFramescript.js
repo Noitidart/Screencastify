@@ -260,7 +260,7 @@ function uninit() { // link4757484773732
 	removeEventListener('unload', uninit, false);
 
 	if (gWinComm) {
-		gWinComm.postMessage('uninit');
+		gWinComm.putMessage('uninit');
 	}
 
 	crossprocComm_unregAll();
@@ -306,7 +306,7 @@ function genericCatch(aPromiseName, aPromiseToReject, aCaught) {
 // start - CommAPI
 // common to all of these apis
 	// whenever you use the message method, the method MUST not be a number, as if it is, then it is assumed it is a callback
-	// if you want to do a transfer of data from a callback, if transferring is supported by the api, then you must wrapp it in aComm.CallbackTransferReturn
+	// if you want to do a transfer of data from a callback, if transferring is supported by the api, then you must arg must be an object and you must include the key __XFER
 
 var gCFMM = this;
 var gCommScope = {
@@ -336,7 +336,7 @@ var gCommScope = {
 
 			rez = deferred_callInContent.promise;
 		}
-		gWinComm.postMessage(method, arg, (arg && arg.arrbuf) ? [arg.arrbuf] : undefined, cWinCommCb); // :todo: design a way so it can transfer to content. for sure though the info that comes here from bootstap is copied. but from here to content i should transfer if possible
+		gWinComm.putMessage(method, arg, cWinCommCb); // :todo: design a way so it can transfer to content. for sure though the info that comes here from bootstap is copied. but from here to content i should transfer if possible
 		return rez;
 	},
 	// end - functions called by bootstrap
@@ -459,7 +459,7 @@ function crossprocComm(aChannelId) {
 }
 // end - CommAPI for bootstrap-framescript - bootstrap side - cross-file-link55565665464644
 // start - CommAPI for framescript-content - bootstrap side - cross-file-link0048958576532536411
-// message method - postMessage - content is in-process-content-windows, transferring works
+// message method - putMessage - content is in-process-content-windows, transferring works
 // there is a bootstrap version of this that requires a feed of the ports.
 function contentComm(aContentWindow, onHandshakeComplete) { // framescript version doesnt have aPort1/aPort2 args, it generates its own with a WebWorker
 	// onHandshakeComplete is triggered when handshake is complete
@@ -470,16 +470,11 @@ function contentComm(aContentWindow, onHandshakeComplete) { // framescript versi
 
 	var aPort1;
 	var aPort2;
-	var handshakeComplete = false; // indicates this.postMessage will now work i think. it might work even before though as the messages might be saved till a listener is setup? i dont know i should ask
+	var handshakeComplete = false; // indicates this.putMessage will now work i think. it might work even before though as the messages might be saved till a listener is setup? i dont know i should ask
 	var scope = gCommScope;
 
 	this.nextcbid = 1; // next callback id // doesnt have to be defined on this. but i do it so i can check nextcbid from debug sources
 	this.callbackReceptacle = {};
-	this.CallbackTransferReturn = function(aArg, aTransfers) {
-		// aTransfers should be an array
-		this.arg = aArg;
-		this.xfer = aTransfers;
-	};
 
 	this.listener = function(e) {
 		var payload = e.data;
@@ -501,13 +496,13 @@ function contentComm(aContentWindow, onHandshakeComplete) { // framescript versi
 					rez_fs_call_for_win.then(
 						function(aVal) {
 							console.log('Fullfilled - rez_fs_call_for_win - ', aVal);
-							this.postMessage(payload.cbid, aVal);
+							this.putMessage(payload.cbid, aVal);
 						}.bind(this),
 						genericReject.bind(null, 'rez_fs_call_for_win', 0)
 					).catch(genericCatch.bind(null, 'rez_fs_call_for_win', 0));
 				} else {
-					console.log('calling postMessage for callback with rez_fs_call_for_win:', rez_fs_call_for_win, 'this:', this);
-					this.postMessage(payload.cbid, rez_fs_call_for_win);
+					console.log('calling putMessage for callback with rez_fs_call_for_win:', rez_fs_call_for_win, 'this:', this);
+					this.putMessage(payload.cbid, rez_fs_call_for_win);
 				}
 			}
 		} else if (!payload.method && payload.cbid) {
@@ -521,15 +516,26 @@ function contentComm(aContentWindow, onHandshakeComplete) { // framescript versi
 
 
 
-	this.postMessage = function(aMethod, aArg, aTransfers, aCallback) {
+	this.putMessage = function(aMethod, aArg, aCallback) {
 
 		// aMethod is a string - the method to call in framescript
 		// aCallback is a function - optional - it will be triggered when aMethod is done calling
-		if (aArg && aArg.constructor == this.CallbackTransferReturn) {
-			// aTransfers is undefined
-			// i needed to create CallbackTransferReturn so that callbacks can transfer data back
-			aTransfers = aArg.xfer;
-			aArg = aArg.arg;
+		var aTransfers;
+		if (aArg && aArg.__XFER) {
+			// if want to transfer stuff aArg MUST be an object, with a key __XFER holding the keys that should be transferred
+			// __XFER is either array or object. if array it is strings of the keys that should be transferred. if object, the keys should be names of the keys to transfer and values can be anything
+			aTransfers = [];
+			var __XFER = aArg.__XFER;
+			if (Array.isArray(__XFER)) {
+				for (var p of __XFER) {
+					aTransfers.push(aArg[p]);
+				}
+			} else {
+				// assume its an object
+				for (var p in __XFER) {
+					aTransfers.push(aArg[p]);
+				}
+			}
 		}
 		var cbid = null;
 		if (typeof(aMethod) == 'number') {
@@ -548,7 +554,7 @@ function contentComm(aContentWindow, onHandshakeComplete) { // framescript versi
 			method: aMethod,
 			arg: aArg,
 			cbid
-		}, aTransfers ? aTransfers : undefined);
+		}, aTransfers);
 	}
 
 
