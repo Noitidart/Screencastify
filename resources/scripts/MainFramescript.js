@@ -6,12 +6,8 @@ Cm.QueryInterface(Ci.nsIComponentRegistrar);
 var core = {addon: {id:'Screencastify@jetpack'}}; // all that should be needed is core.addon.id, the rest is brought over on init
 var gBsComm;
 var gWinComm;
-var gTwitterRec;
-var gFacebookRec;
 
 const MATCH_APP = 1;
-const MATCH_TWITTER = 2;
-const MATCH_FACEBOOK = 3;
 
 // start - about module
 var aboutFactory_screencastify;
@@ -67,7 +63,7 @@ function AboutFactory(component) {
 	this.register();
 }
 // end - about module
-var g = this;
+
 // start - pageLoader
 var pageLoader = {
 	// start - devuser editable
@@ -79,10 +75,6 @@ var pageLoader = {
 		var href_lower = aLocation.href.toLowerCase();
 		if (href_lower.startsWith('about:screencastify') || href_lower.startsWith('https://screencastify')) {
 			return MATCH_APP;
-		} else if (aLocation.host.toLowerCase() == 'twitter.com') {
-			return MATCH_TWITTER;
-		} else if (aLocation.host.toLowerCase().includes('facebook.com')) {
-			return MATCH_FACEBOOK;
 		}
 	},
 	ready: function(aContentWindow) {
@@ -125,74 +117,6 @@ var pageLoader = {
 
 					console.log('ready done');
 
-				break;
-			case MATCH_TWITTER:
-					// twitter, check if should inject
-					var manageTwitterRec = function() {
-						var principal = contentWindow.document.nodePrincipal; // contentWindow.location.origin (this is undefined for about: pages) // docShell.chromeEventHandler.contentPrincipal (chromeEventHandler no longer has contentPrincipal)
-						console.error('principal:', principal);
-						var twitter_sandbox = Cu.Sandbox(principal, {
-							sandboxPrototype: contentWindow,
-							wantXrays: false, // only set this to false if you need direct access to the page's javascript. true provides a safer, isolated context.
-							sameZoneAs: contentWindow,
-							wantComponents: false
-						});
-						Services.scriptloader.loadSubScript(core.addon.path.scripts + 'TwitterContentscript.js?' + core.addon.cache_key, twitter_sandbox, 'UTF-8');
-						gWinComm = new contentComm(contentWindow);
-					};
-					if (!gTwitterRec) {
-						gBsComm.transcribeMessage(
-							'callInWorker',
-							{
-								method: 'checkGetNextTwitterInjectable',
-								wait: true
-							},
-							function(aArg, aComm) {
-								var twitter_rec = aArg;
-								if (twitter_rec) {
-									// create sandbox that lives for the duration of the content window and inject TwitterContentscript.js
-									gTwitterRec = twitter_rec;
-									manageTwitterRec();
-								}
-							}
-						);
-					} else {
-						manageTwitterRec();
-					}
-				break;
-			case MATCH_FACEBOOK:
-					// twitter, check if should inject
-					var manageFacebookRec = function() {
-						var principal = contentWindow.document.nodePrincipal; // contentWindow.location.origin (this is undefined for about: pages) // docShell.chromeEventHandler.contentPrincipal (chromeEventHandler no longer has contentPrincipal)
-						console.error('principal:', principal);
-						var facebook_sandbox = Cu.Sandbox(principal, {
-							sandboxPrototype: contentWindow,
-							wantXrays: false, // only set this to false if you need direct access to the page's javascript. true provides a safer, isolated context.
-							sameZoneAs: contentWindow,
-							wantComponents: false
-						});
-						Services.scriptloader.loadSubScript(core.addon.path.scripts + 'FacebookContentscript.js?' + core.addon.cache_key, facebook_sandbox, 'UTF-8');
-						gWinComm = new contentComm(contentWindow);
-					};
-					if (!gFacebookRec) {
-						gBsComm.transcribeMessage(
-							'callInWorker',
-							{
-								method: 'checkGetNextFacebookInjectable',
-								wait: true
-							},
-							function(aArg, aComm) {
-								var facebook_rec = aArg;
-								if (facebook_rec) {
-									// create sandbox that lives for the duration of the content window and inject TwitterContentscript.js
-									gFacebookRec = facebook_rec;
-									manageFacebookRec();
-								}
-							}
-						);
-					} else {
-						manageFacebookRec();
-					}
 				break;
 		}
 	},
@@ -296,83 +220,6 @@ var pageLoader = {
 	// end - BOILERLATE - DO NOT EDIT
 };
 // end - pageLoader
-Cu.importGlobalProperties(['atob', 'Blob', 'File', 'URL'])
-function dataURItoBlob(dataURI) {
-  // convert base64 to raw binary data held in a string
-  // doesn't handle URLEncoded DataURIs - see SO answer #6850276 for code that does this
-  var byteString = atob(dataURI.split(',')[1]);
-
-  // separate out the mime component
-  var mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0]
-
-  // write the bytes of the string to an ArrayBuffer
-  var ab = new ArrayBuffer(byteString.length);
-  var ia = new Uint8Array(ab);
-  for (var i = 0; i < byteString.length; i++) {
-      ia[i] = byteString.charCodeAt(i);
-  }
-
-  // write the ArrayBuffer to a blob, and you're done
-  var blob = new Blob([ab], {type: mimeString});
-  return blob;
-
-  // Old code
-  // var bb = new BlobBuilder();
-  // bb.append(ab);
-  // return bb.getBlob(mimeString);
-}
-
-function simDrop() {
-	// if (content.location.href.includes('twitter.com')) {
-		var b = dataURItoBlob('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACk0lEQVR4Xm2TzUtbQRTFz3v50NRAJFDUhdv8AWIpbdeCa0WNWhWJKMVVFpoqiAkiuinJxk0rxdJ2V7qzFaGF0m2QFG3Big3Jphra2sSYQr5u7xkwaOnAnffm3vObuXNnxhIRXG1ra2uBer0+qtat1kWfbdt7akm1lwsLC1+vAZyAtrKyYsVisfDS0lJpfn5eaNFo1NjlmDFqqL3kTKcia3l5+c3c3JwsLi7K7u6upFIpOTw8lKOjIzk4ODA+XV2ooZZMYwKFwtokkUjI/v6+nJycyNnZmRQKBTk/P5d8Pi+5XE6Oj48lHo8LtWTIOhUOVCqVVZfLhZ6eHrS3t8Pj8UDH3Htjm/Q1NTWhv78fGxsbKJfLq8pu2wqPlkolT29vL9ra2gzsdjpx8e49sqFppIOjyL96DSeAlpYW+Hw+DA8Pg4yyI07tuh0OB1pbW82qbrcbFx8+IvcoDlexCIfaz8hDoFKB//6IWaCjo8Nolb1lV6vVLq/Xa9LVYwPbr+cvDNwMgdcGPLUqCo+fgI06LuL3+0HWqR3Bxp4ty8Kfz1/g+JRCs8uBG06HCmuod3aSZ7xRG7K2iOxpxZmOmUjHuPlgBrW6oFyro6Awv76Z6UZBqTs9PQVZTE1NxcbGxmRnZ0fUKVpdqav9eLol327flcyde/J765nxsTHOu0FG2ShCoVBgYmKiNDs7y3M2Z66pyf8a/YxHIhEhQ9akND4+Hg4Gg7K+vi7ZbJYirmSAWq1GkGMDb25uCrVkyLIa3FNCj/JtMpmEToJ0Og3WRW8hisWi+WYyGb4X6FZBLZmrj4mXwxoaGgoPDAyU+vr6mCJTNfd/cnJS6GOMGmqvPqZrNjg4GFBhTK/stkLfafynj7F/9X8B/VwdKidGSOIAAAAASUVORK5CYII=')
-		var url = URL.createObjectURL(b);
-		console.log('url:', url);
-
-		var f = new content.File([b], 'i.png')
-
-		// var richInputTweetMsg = content.document.getElementById('tweet-box-global');
-		var richInputTweetMsg = content.document.getElementById('js_13');
-
-		var evt = content.document.createEvent('DragEvents');
-		var dataTransfer = new content.DataTransfer('dragstart', false);
-		evt.initDragEvent('dragenter', true, true, content, 0, 1791, 215, 511, 147, false, false, false, false, 1, richInputTweetMsg, dataTransfer);
-		dataTransfer.effectAllowed = 'copyMove';
-
-		dataTransfer.mozSetDataAt('application/x-moz-file', f, 0);
-		dataTransfer.setData('text/uri-list', url);
-		dataTransfer.setData('text/plain', url);
-
-		console.log('dataTransfer:', dataTransfer);
-		richInputTweetMsg.dispatchEvent(evt);
-
-		var evt = content.document.createEvent('DragEvents');
-		var dataTransfer = new content.DataTransfer('dragstart', false);
-		evt.initDragEvent('dragover', true, true, content, 0, 1791, 215, 511, 147, false, false, false, false, 1, richInputTweetMsg, dataTransfer);
-		dataTransfer.effectAllowed = 'copyMove';
-
-		dataTransfer.mozSetDataAt('application/x-moz-file', f, 0);
-		dataTransfer.setData('text/uri-list', url);
-		dataTransfer.setData('text/plain', url);
-
-		console.log('dataTransfer:', dataTransfer);
-		richInputTweetMsg.dispatchEvent(evt);
-
-		content.setTimeout(function(){
-			var evt = content.document.createEvent('DragEvents');
-			var dataTransfer = new content.DataTransfer('dragstart', false);
-			evt.initDragEvent('drop', true, true, content, 0, 1791, 215, 511, 147, false, false, false, false, 1, richInputTweetMsg, dataTransfer);
-			dataTransfer.effectAllowed = 'copyMove';
-
-			dataTransfer.mozSetDataAt('application/x-moz-file', f, 0);
-			dataTransfer.setData('text/uri-list', url);
-			dataTransfer.setData('text/plain', url);
-
-			console.log('dataTransfer:', dataTransfer);
-			richInputTweetMsg.dispatchEvent(evt);
-		}, 1000);
-
-	// }
-}
 
 function init() {
 	gBsComm = new crossprocComm(core.addon.id);
@@ -397,12 +244,12 @@ function init() {
 					// for about pages, need to reload it, as it it loaded before i registered it
 					content.window.location.href = content.window.location.href.replace(/https\:\/\/screencastify\/?/, 'about:screencastify'); // cannot use .reload() as the webNav.document.documentURI is now https://screencastify/
 				break;
-			case MATCH_TWITTER:
-					// for non-about pages, i dont reload, i just initiate the ready of pageLoader
-					if (content.document.readyState == 'interactive' || content.document.readyState == 'complete') {
-						pageLoader.onPageReady({target:content.document}); // IGNORE_LOAD is true, so no need to worry about triggering load
-					}
-				break;
+			// case MATCH_TWITTER:
+			// 		// for non-about pages, i dont reload, i just initiate the ready of pageLoader
+			// 		if (content.document.readyState == 'interactive' || content.document.readyState == 'complete') {
+			// 			pageLoader.onPageReady({target:content.document}); // IGNORE_LOAD is true, so no need to worry about triggering load
+			// 		}
+			// 	break;
 		}
 	});
 }
@@ -425,10 +272,6 @@ function uninit() { // link4757484773732
 	}
 
 }
-
-// start - functions called by content
-
-// end - functions called by content
 
 // start - common helper functions
 function Deferred() {
@@ -467,7 +310,7 @@ function genericCatch(aPromiseName, aPromiseToReject, aCaught) {
 
 var gCFMM = this;
 var gCommScope = {
-	simDrop,
+	// start - functions called by bootstrap
 	UNINIT_FRAMESCRIPT: function() { // link4757484773732
 		// called by bootstrap - but i guess content can call it too, but i dont see it ever wanting to
 		console.error('doing UNINIT_FRAMESCRIPT');
@@ -496,6 +339,8 @@ var gCommScope = {
 		gWinComm.postMessage(method, arg, (arg && arg.arrbuf) ? [arg.arrbuf] : undefined, cWinCommCb); // :todo: design a way so it can transfer to content. for sure though the info that comes here from bootstap is copied. but from here to content i should transfer if possible
 		return rez;
 	},
+	// end - functions called by bootstrap
+	// start - functions called by content
 	callInBootstrap: function(aArg, aComm) {
 		// called by content
 		var {method, arg, wait} = aArg;
@@ -515,21 +360,8 @@ var gCommScope = {
 		gBsComm.transcribeMessage(method, arg, cbResolver);
 
 		return rez;
-	},
-	// for twitter
-	getCopyOfTwitterRec: function() {
-		return gTwitterRec;
-	},
-	finalizeTwitterRec: function() {
-		gTwitterRec = null;
-	},
-	// for facebook
-	getCopyOfFacebookRec: function() {
-		return gFacebookRec;
-	},
-	finalizeFacebookRec: function() {
-		gFacebookRec = null;
 	}
+	// end - functions called by content
 };
 
 // start - CommAPI for bootstrap-framescript - bootstrap side - cross-file-link55565665464644
