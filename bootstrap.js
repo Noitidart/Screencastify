@@ -621,20 +621,20 @@ function crossprocComm(aChannelId) {
 
 			if (payload.method) {
 				if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') }  // dev line remove on prod
-				var rez_bs_call = scope[payload.method](payload.arg, messageManager, browser, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);  // only on bootstrap side, they get extra 2 args
+				var rez_bs_call__for_fs = scope[payload.method](payload.arg, messageManager, browser, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);  // only on bootstrap side, they get extra 2 args
 				// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
 				if (payload.cbid) {
-					if (rez_bs_call && rez_bs_call.constructor.name == 'Promise') {
-						rez_bs_call.then(
+					if (rez_bs_call__for_fs && rez_bs_call__for_fs.constructor.name == 'Promise') {
+						rez_bs_call__for_fs.then(
 							function(aVal) {
-								console.log('Fullfilled - rez_bs_call - ', aVal);
+								console.log('Fullfilled - rez_bs_call__for_fs - ', aVal);
 								this.transcribeMessage(messageManager, payload.cbid, aVal);
 							}.bind(this),
-							genericReject.bind(null, 'rez_bs_call', 0)
-						).catch(genericCatch.bind(null, 'rez_bs_call', 0));
+							genericReject.bind(null, 'rez_bs_call__for_fs', 0)
+						).catch(genericCatch.bind(null, 'rez_bs_call__for_fs', 0));
 					} else {
-						console.log('bootstrap crossprocComm - calling transcribeMessage for callbck with args:', payload.cbid, rez_bs_call);
-						this.transcribeMessage(messageManager, payload.cbid, rez_bs_call);
+						console.log('bootstrap crossprocComm - calling transcribeMessage for callbck with args:', payload.cbid, rez_bs_call__for_fs);
+						this.transcribeMessage(messageManager, payload.cbid, rez_bs_call__for_fs);
 					}
 				}
 			} else if (!payload.method && payload.cbid) {
@@ -713,21 +713,21 @@ function contentComm(aContentWindow, aPort1, aPort2, onHandshakeComplete) {
 				return;
 			}
 			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') } // dev line remove on prod
-			var rez_bs_call_for_win = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			var rez_bs_call__for_win = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
 			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
-			console.log('rez_bs_call_for_win:', rez_bs_call_for_win);
+			console.log('rez_bs_call__for_win:', rez_bs_call__for_win);
 			if (payload.cbid) {
-				if (rez_bs_call_for_win && rez_bs_call_for_win.constructor.name == 'Promise') {
-					rez_bs_call_for_win.then(
+				if (rez_bs_call__for_win && rez_bs_call__for_win.constructor.name == 'Promise') {
+					rez_bs_call__for_win.then(
 						function(aVal) {
-							console.log('Fullfilled - rez_bs_call_for_win - ', aVal);
+							console.log('Fullfilled - rez_bs_call__for_win - ', aVal);
 							this.putMessage(payload.cbid, aVal);
 						}.bind(this),
-						genericReject.bind(null, 'rez_bs_call_for_win', 0)
-					).catch(genericCatch.bind(null, 'rez_bs_call_for_win', 0));
+						genericReject.bind(null, 'rez_bs_call__for_win', 0)
+					).catch(genericCatch.bind(null, 'rez_bs_call__for_win', 0));
 				} else {
-					console.log('calling putMessage for callback with rez_bs_call_for_win:', rez_bs_call_for_win, 'this:', this);
-					this.putMessage(payload.cbid, rez_bs_call_for_win);
+					console.log('calling putMessage for callback with rez_bs_call__for_win:', rez_bs_call__for_win, 'this:', this);
+					this.putMessage(payload.cbid, rez_bs_call__for_win);
 				}
 			}
 		} else if (!payload.method && payload.cbid) {
@@ -945,21 +945,21 @@ function workerComm(aWorkerPath, onBeforeInit, onAfterInit, aWebWorker) {
 				return;
 			}
 			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') } // dev line remove on prod
-			var rez_bs_call_for_worker = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			var rez_bs_call__for_worker = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
 			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
-			console.log('rez_bs_call_for_worker:', rez_bs_call_for_worker);
+			console.log('rez_bs_call__for_worker:', rez_bs_call__for_worker);
 			if (payload.cbid) {
-				if (rez_bs_call_for_worker && rez_bs_call_for_worker.constructor.name == 'Promise') {
-					rez_bs_call_for_worker.then(
+				if (rez_bs_call__for_worker && rez_bs_call__for_worker.constructor.name == 'Promise') {
+					rez_bs_call__for_worker.then(
 						function(aVal) {
-							console.log('Fullfilled - rez_bs_call_for_worker - ', aVal);
+							console.log('Fullfilled - rez_bs_call__for_worker - ', aVal);
 							this.putMessage(payload.cbid, aVal);
 						}.bind(this),
-						genericReject.bind(null, 'rez_bs_call_for_worker', 0)
-					).catch(genericCatch.bind(null, 'rez_bs_call_for_worker', 0));
+						genericReject.bind(null, 'rez_bs_call__for_worker', 0)
+					).catch(genericCatch.bind(null, 'rez_bs_call__for_worker', 0));
 				} else {
-					console.log('calling putMessage for callback with rez_bs_call_for_worker:', rez_bs_call_for_worker, 'this:', this);
-					this.putMessage(payload.cbid, rez_bs_call_for_worker);
+					console.log('calling putMessage for callback with rez_bs_call__for_worker:', rez_bs_call__for_worker, 'this:', this);
+					this.putMessage(payload.cbid, rez_bs_call__for_worker);
 				}
 			}
 		} else if (!payload.method && payload.cbid) {

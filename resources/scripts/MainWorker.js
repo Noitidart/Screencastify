@@ -1164,26 +1164,26 @@ function workerComm() {
 			}
 			console.log('scope:', scope);
 			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') } // dev line remove on prod
-			var rez_worker_call_for_bs = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			var rez_worker_call__for_bs = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
 			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
-			console.log('rez_worker_call_for_bs:', rez_worker_call_for_bs);
+			console.log('rez_worker_call__for_bs:', rez_worker_call__for_bs);
 			if (payload.cbid) {
-				if (rez_worker_call_for_bs && rez_worker_call_for_bs.constructor.name == 'Promise') {
-					rez_worker_call_for_bs.then(
+				if (rez_worker_call__for_bs && rez_worker_call__for_bs.constructor.name == 'Promise') {
+					rez_worker_call__for_bs.then(
 						function(aVal) {
-							console.log('Fullfilled - rez_worker_call_for_bs - ', aVal);
+							console.log('Fullfilled - rez_worker_call__for_bs - ', aVal);
 							this.putMessage(payload.cbid, aVal);
 						}.bind(this),
-						genericReject.bind(null, 'rez_worker_call_for_bs', 0)
-					).catch(genericCatch.bind(null, 'rez_worker_call_for_bs', 0));
+						genericReject.bind(null, 'rez_worker_call__for_bs', 0)
+					).catch(genericCatch.bind(null, 'rez_worker_call__for_bs', 0));
 				} else {
-					console.log('calling putMessage for callback with rez_worker_call_for_bs:', rez_worker_call_for_bs, 'this:', this);
-					this.putMessage(payload.cbid, rez_worker_call_for_bs);
+					console.log('calling putMessage for callback with rez_worker_call__for_bs:', rez_worker_call__for_bs, 'this:', this);
+					this.putMessage(payload.cbid, rez_worker_call__for_bs);
 				}
 			}
 			// gets here on programtic init, as it for sure does not have a callback
 			if (payload.method == 'init') {
-				this.putMessage('triggerOnAfterInit', rez_worker_call_for_bs);
+				this.putMessage('triggerOnAfterInit', rez_worker_call__for_bs);
 			}
 		} else if (!payload.method && payload.cbid) {
 			// its a cbid

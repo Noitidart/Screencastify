@@ -1038,20 +1038,20 @@ function contentComm(onHandshakeComplete) {
 
 		if (payload.method) {
 			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in WINDOW'); throw new Error('method of "' + payload.method + '" not in WINDOW') } // dev line remove on prod
-			var rez_win_call = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			var rez_win_call__for_fs = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
 			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
-			console.log('content contentComm - rez_win_call:', rez_win_call);
+			console.log('content contentComm - rez_win_call__for_fs:', rez_win_call__for_fs);
 			if (payload.cbid) {
-				if (rez_win_call && rez_win_call.constructor.name == 'Promise') {
-					rez_win_call.then(
+				if (rez_win_call__for_fs && rez_win_call__for_fs.constructor.name == 'Promise') {
+					rez_win_call__for_fs.then(
 						function(aVal) {
-							console.log('Fullfilled - rez_win_call - ', aVal);
+							console.log('Fullfilled - rez_win_call__for_fs - ', aVal);
 							this.putMessage(payload.cbid, aVal);
 						}.bind(this),
-						genericReject.bind(null, 'rez_win_call', 0)
-					).catch(genericCatch.bind(null, 'rez_win_call', 0));
+						genericReject.bind(null, 'rez_win_call__for_fs', 0)
+					).catch(genericCatch.bind(null, 'rez_win_call__for_fs', 0));
 				} else {
-					this.putMessage(payload.cbid, rez_win_call);
+					this.putMessage(payload.cbid, rez_win_call__for_fs);
 				}
 			}
 		} else if (!payload.method && payload.cbid) {

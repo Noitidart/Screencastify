@@ -413,20 +413,20 @@ function crossprocComm(aChannelId) {
 
 			if (payload.method) {
 				if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') }  // dev line remove on prod
-				var rez_bs_call = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+				var rez_fs_call__for_bs = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
 				// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
 				if (payload.cbid) {
-					if (rez_bs_call && rez_bs_call.constructor.name == 'Promise') {
-						rez_bs_call.then(
+					if (rez_fs_call__for_bs && rez_fs_call__for_bs.constructor.name == 'Promise') {
+						rez_fs_call__for_bs.then(
 							function(aVal) {
-								console.log('Fullfilled - rez_bs_call - ', aVal);
+								console.log('Fullfilled - rez_fs_call__for_bs - ', aVal);
 								this.transcribeMessage(messageManager, payload.cbid, aVal);
 							}.bind(this),
-							genericReject.bind(null, 'rez_bs_call', 0)
-						).catch(genericCatch.bind(null, 'rez_bs_call', 0));
+							genericReject.bind(null, 'rez_fs_call__for_bs', 0)
+						).catch(genericCatch.bind(null, 'rez_fs_call__for_bs', 0));
 					} else {
-						console.log('calling transcribeMessage for callbck with args:', payload.cbid, rez_bs_call);
-						this.transcribeMessage(payload.cbid, rez_bs_call);
+						console.log('calling transcribeMessage for callbck with args:', payload.cbid, rez_fs_call__for_bs);
+						this.transcribeMessage(payload.cbid, rez_fs_call__for_bs);
 					}
 				}
 			} else if (!payload.method && payload.cbid) {
@@ -508,21 +508,21 @@ function contentComm(aContentWindow, onHandshakeComplete) { // framescript versi
 				return;
 			}
 			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') } // dev line remove on prod
-			var rez_fs_call_for_win = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			var rez_fs_call__for_win = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
 			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
-			console.log('rez_fs_call_for_win:', rez_fs_call_for_win);
+			console.log('rez_fs_call__for_win:', rez_fs_call__for_win);
 			if (payload.cbid) {
-				if (rez_fs_call_for_win && rez_fs_call_for_win.constructor.name == 'Promise') {
-					rez_fs_call_for_win.then(
+				if (rez_fs_call__for_win && rez_fs_call__for_win.constructor.name == 'Promise') {
+					rez_fs_call__for_win.then(
 						function(aVal) {
-							console.log('Fullfilled - rez_fs_call_for_win - ', aVal);
+							console.log('Fullfilled - rez_fs_call__for_win - ', aVal);
 							this.putMessage(payload.cbid, aVal);
 						}.bind(this),
-						genericReject.bind(null, 'rez_fs_call_for_win', 0)
-					).catch(genericCatch.bind(null, 'rez_fs_call_for_win', 0));
+						genericReject.bind(null, 'rez_fs_call__for_win', 0)
+					).catch(genericCatch.bind(null, 'rez_fs_call__for_win', 0));
 				} else {
-					console.log('calling putMessage for callback with rez_fs_call_for_win:', rez_fs_call_for_win, 'this:', this);
-					this.putMessage(payload.cbid, rez_fs_call_for_win);
+					console.log('calling putMessage for callback with rez_fs_call__for_win:', rez_fs_call__for_win, 'this:', this);
+					this.putMessage(payload.cbid, rez_fs_call__for_win);
 				}
 			}
 		} else if (!payload.method && payload.cbid) {
