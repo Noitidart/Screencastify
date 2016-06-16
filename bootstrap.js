@@ -851,7 +851,11 @@ function workerComm(aWorkerPath, onBeforeInit, onAfterInit, aWebWorker) {
 		var initArg;
 		if (onBeforeInit) {
 			initArg = onBeforeInit(this);
-			this.putMessage('init', initArg); // i dont put onAfterCreate as a callback here, because i want to gurantee that the call of onAfterCreate happens after onAfterInit is triggered link39399999
+			if (onAfterInit) {
+				this.putMessage('init', initArg); // i dont put onAfterCreate as a callback here, because i want to gurantee that the call of onAfterCreate happens after onAfterInit is triggered link39399999
+			} else {
+				this.putMessage('init', initArg, onAfterCreate);
+			}
 		} else {
 			// else, worker is responsible for calling init. worker will know because it keeps track in listener, what is the first putMessage, if it is not "init" then it will run init
 			if (onAfterCreate) {

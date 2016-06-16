@@ -574,6 +574,11 @@ function processAction(aArg) {
 		aArg.__XFER = ['arrbuf'];
 		aArg.id = Date.now(); // action_id which is action_tim
 
+		if (aArg.serviceid == 'twitter') {
+			aArg.action_options = {
+				convert_to_ext: 'mp4'
+			};
+		}
 		callInWorker('processAction', aArg, function(status, aComm) {
 			console.log('back in window after calling processAction, resulting status:', status);
 			if (status.__PROGRESS) {
@@ -592,7 +597,7 @@ function processAction(aArg) {
 
 		store.dispatch(addAlert(aArg.id, {
 			title: formatStringFromNameCore('newrecording_title_' + aArg.serviceid, 'app'),
-			body: 'Processing...', // :l10n:
+			body: 'Initializing...', // :l10n:
 			glyph: 'info-sign'
 		}));
 	};

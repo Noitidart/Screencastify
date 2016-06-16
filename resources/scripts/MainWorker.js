@@ -4,11 +4,13 @@ importScripts('resource://gre/modules/osfile.jsm');
 // Globals
 var core;
 var gBsComm;
+var gConvWkComm;
 
 // build arguments for ffmpeg based on target conversion type
 var gConversionArgs = {
 	gif: [
 		'-i', 'input.webm',
+		'-vf', 'showinfo',
 		'-strict', '-2',
 		'output.gif'
 	],
@@ -16,6 +18,7 @@ var gConversionArgs = {
 		'-i', 'input.webm',
 		'-vcodec', 'libx264',
 		'-pix_fmt', 'yuv420p',
+		'-vf', 'showinfo',
 		'-strict', '-2',
 		'-acodec', 'aac',
 		'output.mp4'
@@ -28,8 +31,7 @@ function init(objCore) {
 	//console.log('in worker init');
 
 	core = objCore;
-
-	importScripts(core.addon.path.scripts + '3rd/ffmpeg-all-codecs.js');
+	console.log('core:', core);
 	importScripts(core.addon.path.scripts + 'supplement/MainWorkerSupplement.js');
 
 	core.os.name = OS.Constants.Sys.Name.toLowerCase();
@@ -42,6 +44,9 @@ function init(objCore) {
 	formatStringFromName('blah', 'app');
 	core.addon.l10n = _cache_formatStringFromName_packages;
 
+	// prepare but dont yet create conversion worker
+	gConvWkComm = new workerworkerComm(core.addon.path.scripts + 'ConversionWorker.js', ()=>{return core});
+
 	setTimeoutSync(1000); // i want to delay 1sec to allow old framescripts to destroy
 
 	return core;
@@ -49,7 +54,9 @@ function init(objCore) {
 
 // Start - Addon Functionality
 self.onclose = function() {
-	console.log('ok ready to terminate');
+	console.log('doing mainworker term proc');
+	workerComm_unregAll();
+
 	switch (core.os.mname) {
 		case 'android':
 
@@ -59,6 +66,7 @@ self.onclose = function() {
 
 			break;
 	}
+	console.log('ok ready to terminate');
 }
 
 function bootstrapTimeout(milliseconds) {
@@ -134,43 +142,78 @@ function checkGetNextTwitterInjectable(aArg, aComm) {
 	}
 }
 
-function action_twitter(rec, aCallback) {
+function action_twitter(rec, aCallback, aReportProgress) {
 
 	// start async-proc98222
-	var pass = {};
+	var l10n_friendly_mimetype = {
+		mp4: 'video', // :l10n:
+		gif: 'GIF' // :l10n:
+	};
+
+	var shouldConvert = function() {
+		// checks if needs to convert
+		if (rec.mimetype.endsWith('/' + rec.action_options.convert_to_ext)) {
+			// no need to convert
+			oauthPost();
+		} else {
+			convert();
+		}
+	};
+
 	var convert = function() {
 		console.log('converting to mp4');
 
 		// convert it
-		var converted_files = ffmpeg_run({
-			arguments: [
-				'-i', 'input.webm',
-				'-vf', 'showinfo',
-				'-strict', '-2', 'output.mp4'
-			],
-			files: [{ data:(new Uint8Array(rec.arrbuf)), name:'input.webm' }],
-			TOTAL_MEMORY: 536870912
+		aReportProgress({
+			reason: 'Waiting to convert to ' + l10n_friendly_mimetype[rec.action_options.convert_to_ext] + '...'
 		});
-		console.log('conversion done, converted_files:', converted_files);
-		pass.converted_arrbuf = converted_files[0].data;
-		pass.converted_mimetype = 'video/mp4';
-		launch(pass);
+
+		gConvWkComm.putMessage('run', {
+			arrbuf: rec.arrbuf,
+			args: gConversionArgs[rec.action_options.convert_to_ext],
+			__XFER: ['arrbuf']
+		}, checkConverted)
 	};
 
-	var launch = function(pass) {
-		// after conversion complete
-		rec.arrbuf = pass.converted_arrbuf;
-		rec.mimetype = pass.converted_mimetype;
-		gTwitterRecs.push(rec);
-		callInBootstrap('loadOneTab', {
-			URL: 'https://twitter.com/',
-			params: {
-				inBackground: false
+	var checkConverted = function(aConvArg, aComm) {
+		if (aConvArg.__PROGRESS) {
+			switch(aConvArg.status) {
+				case 'CONV_STARTED':
+						aReportProgress({
+							reason: 'Converting to ' + l10n_friendly_mimetype[rec.action_options.convert_to_ext] + '...' // :l10n:
+						});
+					break;
+				case 'CONV_STDOUT':
+						var { stdout } = aConvArg;
+						aReportProgress({
+							reason: 'Converting to ' + l10n_friendly_mimetype[rec.action_options.convert_to_ext] + '... (' + stdout.substr(0, 144) + '...)' // :l10n:
+						});
+					break;
 			}
-		});
+		} else {
+			if (aConvArg.status) {
+				rec.arrbuf = aConvArg.arrbuf;
+				rec.mimetype = rec.action_options.convert_to_ext == 'gif' ? 'image/gif' : 'video/mp4';
+
+				oauthPost();
+			} else {
+				aCallback({
+					ok: false,
+					reason: 'Conversion to ' + l10n_friendly_mimetype[rec.action_options.convert_to_ext] + ' failed.'
+				});
+			}
+		}
 	};
 
-	convert();
+	var oauthPost = function() {
+		// after conversion complete
+		aCallback({
+			ok: false,
+			reason: 'The flow for posting to Twitter is not yet setup.'
+		})
+	};
+
+	shouldConvert();
 	// end async-proc98222
 }
 
@@ -447,18 +490,24 @@ function action_gfycatanon(rec, aCallback) {
 	// end async-proc938
 }
 
-function action_quick(rec, aCallback) {
+function action_quick(rec, aCallback, aReportProgress) {
 	// action for save-quick
 	console.log('worker - action_quick');
 
 	// start async-proc3933
 	var gsd = function() {
 		console.log('worker - action_quick - gsd');
+		aReportProgress({
+			reason: 'Determining default videos directory...'
+		});
 		getSystemDirectory('Videos').then(write);
 	};
 
 	var write = function(path) {
 		console.log('worker - action_quick - write');
+		aReportProgress({
+			reason: 'Writing to disk...'
+		});
 		try {
 			OS.File.writeAtomic( buildPathForScreencast(path, rec), new Uint8Array(rec.arrbuf), {encoding:'utf-8'} );
 			aCallback({
@@ -487,11 +536,20 @@ function buildPathForScreencast(path, rec, unsafe_filename) {
 	return OS.Path.join( path, safedForPlatFS(unsafe_filename, {repStr:'.'}) ) + '.' + rec.mimetype.substr(rec.mimetype.indexOf('/')+1);
 }
 
-function action_browse(rec, aCallback) {
+function action_browse(rec, aCallback, aReportProgress) {
 	// action for save-browse
 
+	var l10n_friendly_mimetype = {
+		mp4: 'video', // :l10n:
+		gif: 'GIF' // :l10n:
+	};
+
 	// start async-proc0003
+	var pass;
 	var browse = function() {
+		aReportProgress({
+			reason: 'Browse dialog opened...'
+		});
 		var file_ext = rec.mimetype.substr(rec.mimetype.indexOf('/')+1);
 		callInBootstrap(
 			'browseFile',
@@ -514,7 +572,7 @@ function action_browse(rec, aCallback) {
 				if (!aArg) {
 					aCallback({
 						status: false,
-						reason: 'You clicked cancel'
+						reason: 'Cancelled'
 					});
 				} else {
 					var {filepath, filter} = aArg;
@@ -522,36 +580,71 @@ function action_browse(rec, aCallback) {
 					if (!filepath.toLowerCase().endsWith('.' + filter)) {
 						filepath += '.' + ext;
 					}
-					var pass = { filepath, ext }; // pass is a collection of data used in the calls in async-proc, and in each call it destructures what it uses, and ignores what it doesnt. then passes pass to the next
-					convert(pass); // filepath should be safed, as the browse dialog wont let in illegal characters
+					pass = { filepath, ext }; // pass is a collection of data used in the calls in async-proc, and in each call it destructures what it uses, and ignores what it doesnt. then passes pass to the next
+					convert(); // filepath should be safed, as the browse dialog wont let in illegal characters
 				}
 			}
 		);
 	};
 
-	var convert = function(pass) {
+	var convert = function() {
 		var { ext } = pass;
 
 		if (ext == 'webm') {
 			// no need to convert
-			write(pass);
+			write();
 		} else {
 			console.log('converting to ' + ext);
 
 			// convert it
-			var converted_files = ffmpeg_run({
-				arguments: gConversionArgs[ext],
-				files: [{ data:(new Uint8Array(rec.arrbuf)), name:'input.webm' }],
-				TOTAL_MEMORY: 536870912
+			aReportProgress({
+				reason: 'Waiting to convert to ' + l10n_friendly_mimetype[ext] + '...'
 			});
-			console.log('conversion done, converted_files:', converted_files);
-			pass.converted_arrbuf = converted_files[0].data;
-			write(pass);
+
+			gConvWkComm.putMessage('run', {
+				arrbuf: rec.arrbuf,
+				args: gConversionArgs[ext],
+				__XFER: ['arrbuf']
+			}, checkConverted)
 		}
 	};
 
-	var write = function(pass) {
+	var checkConverted = function(aConvArg, aComm) {
+		var { ext } = pass;
+
+		if (aConvArg.__PROGRESS) {
+			switch(aConvArg.status) {
+				case 'CONV_STARTED':
+						aReportProgress({
+							reason: 'Converting to ' + l10n_friendly_mimetype[ext] + '...' // :l10n:
+						});
+					break;
+				case 'CONV_STDOUT':
+						var { stdout } = aConvArg;
+						aReportProgress({
+							reason: 'Converting to ' + l10n_friendly_mimetype[ext] + '... (' + stdout.substr(0, 144) + '...)' // :l10n:
+						});
+					break;
+			}
+		} else {
+			if (aConvArg.status) {
+				pass.converted_arrbuf = aConvArg.arrbuf;
+				write();
+			} else {
+				aCallback({
+					ok: false,
+					reason: 'Conversion to ' + l10n_friendly_mimetype[ext] + ' failed.'
+				});
+			}
+		}
+	};
+
+	var write = function() {
 		var { filepath } = pass;
+
+		aReportProgress({
+			reason: 'Writing to disk...'
+		});
 
 		try {
 			OS.File.writeAtomic( filepath, new Uint8Array(pass.converted_arrbuf || rec.arrbuf), {encoding:'utf-8'} );
@@ -572,18 +665,18 @@ function action_browse(rec, aCallback) {
 }
 
 // start - functions called by bootstrap
-function processAction(aArg, aComm) {
-	var { serviceid, arrbuf, time, mimetype } = aArg;
+function processAction(aArg, aReportProgress, aComm) {
+	var { serviceid, arrbuf, time, mimetype, action_options } = aArg;
 
 	var deferredMain_processAction = new Deferred();
 
 	console.log('worker - processAction - aArg:', aArg);
-	var rec = { arrbuf, time, mimetype };
+	var rec = { arrbuf, time, mimetype, action_options };
 
 	gWorker['action_' + serviceid](rec, function(status) {
 		console.log('worker - processAction complete, status:', status);
 		deferredMain_processAction.resolve(status);
-	});
+	}, aReportProgress);
 
 	return deferredMain_processAction.promise;
 }
@@ -1233,6 +1326,181 @@ function callInBootstrap(aMethod, aArg, aCallback) {
 	gBsComm.putMessage(aMethod, aArg, aCallback);
 }
 // end - CommAPI
+// TODO: complete this mainworker-worker comm api
+// start - CommAPI for mainworker-worker - mainworker side
+var gWorkerComms = [];
+function workerComm_unregAll() {
+	var l = gWorkerComms.length;
+	for (var i=0; i<l; i++) {
+		gWorkerComms[i].unregister();
+	}
+}
+function workerworkerComm(aWorkerPath, onBeforeInit, onAfterInit, aWebWorker) {
+	// limitations:
+		// the first call is guranteed
+		// devuser should never putMessage from worker with method name "triggerOnAfterInit" - this is reserved for programtic use
+		// devuser should never putMessage from bootstrap with method name "init" - progmaticcaly this is automatically done in this.createWorker
+
+	// worker is lazy loaded, it is not created until the first call. if you want instant instantiation, call this.createWorker() with no args
+	// creates a ChromeWorker, unless aWebWorker is true
+
+	// if onBeforeInit is set
+		// if worker has `init` function
+			// it is called by bootstrap, (progrmatically, i determine this by basing the first call to the worker)
+	// if onBeforeInit is NOT set
+		// if worker has `init` function
+			// it is called by the worker before the first call to any method in the worker
+	// onAfterInit is not called if `init` function does NOT exist in the worker. it is called by worker doing putMessage to bootstrap
+
+	// onBeforeInit - args: this - it is a function, return a single var to send to init function in worker. can return set arg to object with key __XFER if you want to transfer. it is run to build the data the worker should be inited with.
+	// onAfterInit - args: aArg, this - a callback that happens after init is complete. aArg is return value of init from in worker. the first call to worker will happen after onAfterInit runs in bootstrap
+	// these init features are offered because most times, workers need some data before starting off. and sometimes data is sent back to bootstrap like from init of MainWorker's
+	// no featuere for prep term, as the prep term should be done in the `self.onclose = function(event) { ... }` of the worker
+	gWorkerComms.push(this);
+
+	var worker;
+	var scope = gWorker;
+	this.nextcbid = 1; //next callback id
+	this.callbackReceptacle = {};
+	this.reportProgress = function(aProgressArg) {
+		// aProgressArg MUST be an object, devuser can set __PROGRESS:1 but doesnt have to, because i'll set it here if its not there
+		// this gets passed as thrid argument to each method that is called in the scope
+		// devuser MUST NEVER bind reportProgress. as it is bound to {THIS:this, cbid:cbid}
+		// devuser must set up the aCallback they pass to initial putMessage to handle being called with an object with key __PROGRESS:1 so they know its not the final reply to callback, but an intermediate progress update
+		aProgressArg.__PROGRESS = 1;
+		this.THIS.putMessage(this.cbid, aProgressArg);
+	};
+
+	this.createWorker = function(onAfterCreate) {
+		// only triggered by putMessage when `var worker` has not yet been set
+		worker = aWebWorker ? new Worker(aWorkerPath) : new ChromeWorker(aWorkerPath);
+		worker.addEventListener('message', this.listener);
+
+		if (onAfterInit) {
+			var oldOnAfterInit = onAfterInit;
+			onAfterInit = function(aArg, aComm) {
+				oldOnAfterInit(aArg, aComm);
+				if (onAfterCreate) {
+					onAfterCreate(); // link39399999
+				}
+			}
+		}
+
+		var initArg;
+		if (onBeforeInit) {
+			initArg = onBeforeInit(this);
+			if (onAfterInit) {
+				this.putMessage('init', initArg); // i dont put onAfterCreate as a callback here, because i want to gurantee that the call of onAfterCreate happens after onAfterInit is triggered link39399999
+			} else {
+				this.putMessage('init', initArg, onAfterCreate);
+			}
+		} else {
+			// else, worker is responsible for calling init. worker will know because it keeps track in listener, what is the first putMessage, if it is not "init" then it will run init
+			if (onAfterCreate) {
+				onAfterCreate(); // as putMessage i the only one who calls this.createWorker(), onAfterCreate is the origianl putMessage intended by the devuser
+			}
+		}
+	};
+	this.putMessage = function(aMethod, aArg, aCallback) {
+		// aMethod is a string - the method to call in framescript
+		// aCallback is a function - optional - it will be triggered when aMethod is done calling
+
+		if (!worker) {
+			this.createWorker(this.putMessage.bind(this, aMethod, aArg, aCallback));
+		} else {
+			var aTransfers;
+			if (aArg && aArg.__XFER) {
+				// if want to transfer stuff aArg MUST be an object, with a key __XFER holding the keys that should be transferred
+				// __XFER is either array or object. if array it is strings of the keys that should be transferred. if object, the keys should be names of the keys to transfer and values can be anything
+				aTransfers = [];
+				var __XFER = aArg.__XFER;
+				if (Array.isArray(__XFER)) {
+					for (var p of __XFER) {
+						aTransfers.push(aArg[p]);
+					}
+				} else {
+					// assume its an object
+					for (var p in __XFER) {
+						aTransfers.push(aArg[p]);
+					}
+				}
+			}
+			var cbid = null;
+			if (typeof(aMethod) == 'number') {
+				// this is a response to a callack waiting in framescript
+				cbid = aMethod;
+				aMethod = null;
+			} else {
+				if (aCallback) {
+					cbid = this.nextcbid++;
+					this.callbackReceptacle[cbid] = aCallback;
+				}
+			}
+
+			worker.postMessage({
+				method: aMethod,
+				arg: aArg,
+				cbid
+			}, aTransfers);
+		}
+	};
+	this.unregister = function() {
+
+		var l = gWorkerComms.length;
+		for (var i=0; i<l; i++) {
+			if (gWorkerComms[i] == this) {
+				gWorkerComms.splice(i, 1);
+				break;
+			}
+		}
+
+		if (worker) { // because maybe it was setup, but never instantiated
+			worker.terminate();
+		}
+
+	};
+	this.listener = function(e) {
+		var payload = e.data;
+		console.log('mainworker workerComm - incoming, payload:', payload); //, 'e:', e);
+
+		if (payload.method) {
+			if (payload.method == 'triggerOnAfterInit') {
+				if (onAfterInit) {
+					onAfterInit(payload.arg, this);
+				}
+				return;
+			}
+			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') } // dev line remove on prod
+			var rez_mainworker_call__for_worker = scope[payload.method](payload.arg, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined, this);
+			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
+			console.log('rez_mainworker_call__for_worker:', rez_mainworker_call__for_worker);
+			if (payload.cbid) {
+				if (rez_mainworker_call__for_worker && rez_mainworker_call__for_worker.constructor.name == 'Promise') {
+					rez_mainworker_call__for_worker.then(
+						function(aVal) {
+							console.log('Fullfilled - rez_mainworker_call__for_worker - ', aVal);
+							this.putMessage(payload.cbid, aVal);
+						}.bind(this),
+						genericReject.bind(null, 'rez_mainworker_call__for_worker', 0)
+					).catch(genericCatch.bind(null, 'rez_mainworker_call__for_worker', 0));
+				} else {
+					console.log('calling putMessage for callback with rez_mainworker_call__for_worker:', rez_mainworker_call__for_worker, 'this:', this);
+					this.putMessage(payload.cbid, rez_mainworker_call__for_worker);
+				}
+			}
+		} else if (!payload.method && payload.cbid) {
+			// its a cbid
+			this.callbackReceptacle[payload.cbid](payload.arg, this);
+			if (payload.arg && !payload.arg.__PROGRESS) {
+				delete this.callbackReceptacle[payload.cbid];
+			}
+		} else {
+			console.error('mainworker workerComm - invalid combination');
+			throw new Error('mainworker workerComm - invalid combination');
+		}
+	}.bind(this);
+}
+// end - CommAPI for mainworker-worker - mainworker side - cross-file-link5323131347
 // end - common helper functions
 
 // startup
