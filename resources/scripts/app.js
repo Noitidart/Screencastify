@@ -585,8 +585,9 @@ var NewRecordingPage = React.createClass({
 
 		if (serviceid == 'twitter') {
 			store.dispatch(setDialog([
-				{ label: 'Looping GIF', onClick:this.twitterGif },
-				{ label: 'Video', onClick:this.twitterVideo }
+				{ label: formatStringFromNameCore('newrecording_looping_gif', 'app'), onClick:this.twitterGif },
+				{ label: formatStringFromNameCore('newrecording_video', 'app'), onClick:this.twitterVideo },
+				{ label: formatStringFromNameCore('cancel', 'app'), onClick:this.dialogCancel }
 			]))
 		} else {
 			processAction( { serviceid } );
@@ -616,6 +617,9 @@ var NewRecordingPage = React.createClass({
 				convert_to_ext: 'mp4'
 			}
 		});
+	},
+	dialogCancel: function() {
+		store.dispatch(destroyDialog());
 	}
 });
 

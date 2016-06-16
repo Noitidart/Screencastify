@@ -136,7 +136,7 @@ button {
     width: 50vw;
     position: absolute;
     left: 25vw;
-    bottom: 40vh;
+    bottom: 30vh;
     background-color: #fff;
     background-image: none;
     transition: bottom 300ms;
