@@ -39,7 +39,7 @@ function getPage() {
 getPage();
 
 function init() {
-	gFsComm.putMessage('callInBootstrap', {method:'fetchCore',wait:true}, function(aCore) {
+	callInBootstrap('fetchCore', undefined, function(aCore) {
 		console.log('core:', aCore);
 		core = aCore;
 
@@ -520,19 +520,6 @@ function processAction(aArg) {
 
 
 
-}
-
-function callInWorker(method, arg, aCallback) {
-	// for use by this scope - window scope
-	gFsComm.putMessage('callInBootstrap', {
-		method: 'callInWorker',
-		arg: {
-			method,
-			arg,
-			wait: aCallback ? true : false
-		},
-		wait: aCallback ? true : false
-	}, aCallback);
 }
 
 var ManageRecordingPage = React.createClass({
@@ -1066,7 +1053,6 @@ function contentComm(onHandshakeComplete) {
 		}
 	}.bind(this);
 	this.putMessage = function(aMethod, aArg, aCallback) {
-
 		// aMethod is a string - the method to call in framescript
 		// aCallback is a function - optional - it will be triggered when aMethod is done calling
 		var aTransfers;

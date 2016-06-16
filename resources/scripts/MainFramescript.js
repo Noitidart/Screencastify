@@ -544,6 +544,7 @@ function contentComm(aContentWindow, onHandshakeComplete) { // framescript versi
 // CommAPI Abstraction - framescript side
 function callInContent(aMethod, aArg, aCallback) {
 	if (aMethod.constructor.name == 'Object') {
+		// called by bootstrap
 		var aComm = aArg;
 		var aReportProgress = aCallback;
 		var {m:aMethod, a:aArg} = aMethod;
@@ -566,6 +567,7 @@ function callInContent(aMethod, aArg, aCallback) {
 }
 function callInBootstrap(aMethod, aArg, aCallback) {
 	if (aMethod.constructor.name == 'Object') {
+		// called by content
 		var aComm = aArg;
 		var aReportProgress = aCallback;
 		var {m:aMethod, a:aArg} = aMethod;
@@ -588,7 +590,26 @@ function callInBootstrap(aMethod, aArg, aCallback) {
 }
 function callInWorker(aMethod, aArg, aCallback) {
 	if (aMethod.constructor.name == 'Object') {
-		// no one calls this from other scopes yet
+		// content called this
+		var aComm = aArg;
+		var aReportProgress = aCallback;
+		var {m:aMethod, a:aArg} = aMethod;
+		if (aReportProgress) { // if (wait) { // if it has aReportProgress then the scope has a callback waiting for reply
+			var deferred = new Deferred();
+			gBsComm.transcribeMessage('callInWorker', {
+				m: aMethod,
+				a: aArg
+			}, function(rez) {
+				if (rez && rez.__PROGRESS) {
+					aReportProgress(rez);
+				} else {
+					deferred.resolve(rez);
+				}
+			});
+			return deferred.promise;
+		} else {
+			gBsComm.transcribeMessage(aMethod, aArg);
+		}
 	} else {
 		gBsComm.transcribeMessage('callInWorker', {
 			m: aMethod,
@@ -604,57 +625,15 @@ var gCommScope = {
 		console.error('doing UNINIT_FRAMESCRIPT');
 		uninit();
 	},
-	// callInBootstrap,
-	// callInContent,
-	// callInWorker,
+	callInBootstrap,
+	callInContent,
+	callInWorker
 	// end - apart of CommAPI
 	// start - devuser defined functions
-	callInContent: function(aArg) {
-		// called by bootstrap
-		var {method, arg, wait} = aArg;
-		// wait - bool - set to true if you want to wait for response from content, and then return it to bootstrap
-
-		if (!gWinComm) {
-			console.warn('no currently connected window');
-			return 'NO_WIN_COMM';
-		}
-		var cWinCommCb = undefined;
-		var rez = undefined;
-		if (wait) {
-			var deferred_callInContent = new Deferred();
-
-			cWinCommCb = function(aVal) {
-				deferred_callInContent.resolve(aVal);
-			};
-
-			rez = deferred_callInContent.promise;
-		}
-		gWinComm.putMessage(method, arg, cWinCommCb); // :todo: design a way so it can transfer to content. for sure though the info that comes here from bootstap is copied. but from here to content i should transfer if possible
-		return rez;
-	},
-	// end - functions called by bootstrap
-	// start - functions called by content
-	callInBootstrap: function(aArg, aComm) {
-		// called by content
-		var {method, arg, wait} = aArg;
-		// wait - bool - set to true if you want value returned to content // cross-file-link11192911
-
-		var rez;
-		var cbResolver = undefined;
-
-		if (wait) {
-			var deferred_callInBootstrap = new Deferred();
-			cbResolver = function(aArg, aComm) {
-				console.log('callInBootstrap transcribe complete, aArg:', aArg);
-				deferred_callInBootstrap.resolve(aArg);
-			}
-			rez = deferred_callInBootstrap.promise;
-		}
-		gBsComm.transcribeMessage(method, arg, cbResolver);
-
-		return rez;
-	}
-	// end - functions called by content
+	// functions called by bootstrap
+	// ...
+	// functions called by content
+	// ...
 	// end - devuser defined functions
 };
 // end - CommAPI

@@ -162,7 +162,7 @@ function action_twitter(rec, aCallback) {
 		rec.arrbuf = pass.converted_arrbuf;
 		rec.mimetype = pass.converted_mimetype;
 		gTwitterRecs.push(rec);
-		gBsComm.putMessage('loadOneTab', {
+		callInBootstrap('loadOneTab', {
 			URL: 'https://twitter.com/',
 			params: {
 				inBackground: false
@@ -218,7 +218,7 @@ function action_facebook(rec, aCallback) {
 		rec.arrbuf = pass.converted_arrbuf;
 		rec.mimetype = pass.converted_mimetype;
 		gFacebookRecs.push(rec);
-		gBsComm.putMessage('loadOneTab', {
+		callInBootstrap('loadOneTab', {
 			URL: 'https://www.facebook.com',
 			params: {
 				inBackground: false
@@ -493,7 +493,7 @@ function action_browse(rec, aCallback) {
 	// start async-proc0003
 	var browse = function() {
 		var file_ext = rec.mimetype.substr(rec.mimetype.indexOf('/')+1);
-		gBsComm.putMessage(
+		callInBootstrap(
 			'browseFile',
 			{
 				aDialogTitle: formatStringFromName('dialog_save_title', 'main'),
@@ -591,18 +591,6 @@ function processAction(aArg, aComm) {
 
 	return deferredMain_processAction.promise;
 }
-
-function globalRecordNew(aArg, aComm) {
-	var id = createStore();
-	gBsComm.putMessage('globalRecordStart', { id });
-}
-function globalRecordComplete(aArg, aComm) {
-	var { id, arrbuf } = aArg;
-	var store = getStore(id);
-
-	store.arrbuf = arrbuf;
-	gBsComm.putMessage('manageSingle')
-}
 // end - functions called by bootstrap
 
 // End - Addon Functionality
@@ -675,7 +663,7 @@ function getSystemDirectory(type) {
 
 		switch (route) {
 			case TYPE_ROUTE_BOOTSTRAP:
-					gBsComm.putMessage('getSystemDirectory_bootstrap', type, function(path) {
+					callInBootstrap('getSystemDirectory_bootstrap', type, function(path) {
 						deferredMain_getSystemDirectory.resolve(path);
 					});
 				break;

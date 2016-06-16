@@ -571,7 +571,7 @@ function genericCatch(aPromiseName, aPromiseToReject, aCaught) {
 // common to all of these apis
 	// whenever you use the message method, the method MUST not be a number, as if it is, then it is assumed it is a callback
 	// if you want to do a transfer of data from a callback, if transferring is supported by the api, then you must arg must be an object and you must include the key __XFER
-
+	// whenever you do aReprotProgress - it must be an object. The key __PROGRESS will get added to it, so in your final callback destination, you will know not to continue
 var gBootstrap = this;
 
 // start - CommAPI for bootstrap-framescript - bootstrap side - cross-file-link55565665464644
