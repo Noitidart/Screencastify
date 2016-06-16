@@ -288,7 +288,7 @@ function testCallFramescriptFromContent_justcb(aArg, aMessageManager, aBrowser, 
 }
 function testCallFramescriptFromContent_justcb_thattransfers(aArg, aComm, aReportProgress) {
 	// called by framescript
-	console.error('in worker, aArg:', aArg);
+	console.error('in framescript, aArg:', aArg);
 	var send = {
 		num: 2,
 		buf: new ArrayBuffer(20),
@@ -299,7 +299,7 @@ function testCallFramescriptFromContent_justcb_thattransfers(aArg, aComm, aRepor
 	});
 	return send;
 }
-function testCallFramescriptFromContent_cbAndFullXfer(aArg, aComm, aReportProgress) {
+function testCallFramescriptFromContent_cbAndFullXfer(aArg, aReportProgress, aComm) {
 	console.error('in framescript, aArg:', aArg);
 	var argP = {start:2, bufP:new ArrayBuffer(20), __XFER:['bufP']};
 	aReportProgress(argP);
@@ -400,7 +400,7 @@ function crossprocComm(aChannelId) {
 
 			if (payload.method) {
 				if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') }  // dev line remove on prod
-				var rez_fs_call__for_bs = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+				var rez_fs_call__for_bs = scope[payload.method](payload.arg, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined, this);
 				// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
 				if (payload.cbid) {
 					if (rez_fs_call__for_bs && rez_fs_call__for_bs.constructor.name == 'Promise') {
@@ -484,7 +484,7 @@ function contentComm(aContentWindow, onHandshakeComplete) { // framescript versi
 
 	this.listener = function(e) {
 		var payload = e.data;
-		console.log('framescript contentComm - incoming, payload:', uneval(payload)); //, 'e:', e);
+		console.log('framescript contentComm - incoming, payload:', payload); //, 'e:', e);
 
 		if (payload.method) {
 			if (payload.method == 'contentComm_handshake_finalized') {
@@ -495,7 +495,7 @@ function contentComm(aContentWindow, onHandshakeComplete) { // framescript versi
 				return;
 			}
 			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') } // dev line remove on prod
-			var rez_fs_call__for_win = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			var rez_fs_call__for_win = scope[payload.method](payload.arg, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined, this);
 			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
 			console.log('rez_fs_call__for_win:', rez_fs_call__for_win);
 			if (payload.cbid) {
@@ -586,8 +586,8 @@ function contentComm(aContentWindow, onHandshakeComplete) { // framescript versi
 function callInContent(aMethod, aArg, aCallback) {
 	if (aMethod.constructor.name == 'Object') {
 		// called by bootstrap
-		var aComm = aArg;
-		var aReportProgress = aCallback;
+		var aReportProgress = aArg;
+		var aComm = aCallback;
 		var {m:aMethod, a:aArg} = aMethod;
 		if (aReportProgress) { // if (wait) { // if it has aReportProgress then the scope has a callback waiting for reply
 			var deferred = new Deferred();
@@ -609,8 +609,8 @@ function callInContent(aMethod, aArg, aCallback) {
 function callInBootstrap(aMethod, aArg, aCallback) {
 	if (aMethod.constructor.name == 'Object') {
 		// called by content
-		var aComm = aArg;
-		var aReportProgress = aCallback;
+		var aReportProgress = aArg;
+		var aComm = aCallback;
 		var {m:aMethod, a:aArg} = aMethod;
 		if (aReportProgress) { // if (wait) { // if it has aReportProgress then the scope has a callback waiting for reply
 			var deferred = new Deferred();
@@ -632,8 +632,8 @@ function callInBootstrap(aMethod, aArg, aCallback) {
 function callInWorker(aMethod, aArg, aCallback) {
 	if (aMethod.constructor.name == 'Object') {
 		// content called this
-		var aComm = aArg;
-		var aReportProgress = aCallback;
+		var aReportProgress = aArg;
+		var aComm = aCallback;
 		var {m:aMethod, a:aArg} = aMethod;
 		if (aReportProgress) { // if (wait) { // if it has aReportProgress then the scope has a callback waiting for reply
 			var deferred = new Deferred();

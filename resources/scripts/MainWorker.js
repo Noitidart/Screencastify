@@ -623,7 +623,7 @@ function testCallWorkerFromContent_justcb_thattransfers(aArg, aMessageManager, a
 	});
 	return send;
 }
-function testCallWorkerFromContent_cbAndFullXfer(aArg, aComm, aReportProgress) {
+function testCallWorkerFromContent_cbAndFullXfer(aArg, aReportProgress, aComm) {
 	console.error('in worker, aArg:', aArg);
 	var argP = {start:3, bufP:new ArrayBuffer(30), __XFER:['bufP']};
 	aReportProgress(argP);
@@ -1195,7 +1195,7 @@ function workerComm() {
 			}
 			console.log('scope:', scope);
 			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') } // dev line remove on prod
-			var rez_worker_call__for_bs = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			var rez_worker_call__for_bs = scope[payload.method](payload.arg, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined, this);
 			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
 			console.log('rez_worker_call__for_bs:', rez_worker_call__for_bs);
 			if (payload.cbid) {

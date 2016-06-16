@@ -1125,7 +1125,7 @@ function contentComm(onHandshakeComplete) {
 
 		if (payload.method) {
 			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in WINDOW'); throw new Error('method of "' + payload.method + '" not in WINDOW') } // dev line remove on prod
-			var rez_win_call__for_fs = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			var rez_win_call__for_fs = scope[payload.method](payload.arg, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined, this);
 			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
 			console.log('content contentComm - rez_win_call__for_fs:', rez_win_call__for_fs);
 			if (payload.cbid) {

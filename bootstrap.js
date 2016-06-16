@@ -344,87 +344,35 @@ function FHR() {
 // end - functions called by bootstrap - that talk to worker
 
 // start - functions called by framescript
-function fetchCore(aArg, aComm) {
+function fetchCore(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
 	return core;
-}
-function callInWorker(aArg, aMessageManager, aBrowser, aComm) {
-	// called by framescript
-	var {method, arg, wait} = aArg;
-	// wait - bool - set to true if you want to wait for response from worker, and then return it to framescript
-
-	var cWorkerCommCb = undefined;
-	var rez = undefined;
-	if (wait) {
-		var deferred_callInWorker = new Deferred();
-
-		cWorkerCommCb = function(aVal) {
-			deferred_callInWorker.resolve(aVal);
-		};
-
-		rez = deferred_callInWorker.promise;
-	}
-	gWkComm.putMessage(method, arg, cWorkerCommCb); // :todo: design a way so it can transfer to content. for sure though the info that comes here from bootstap is copied. but from here to content i should transfer if possible
-	return rez;
 }
 // end - functions called by framescript
 
 // start - functions called by worker
-function loadOneTab(aArg, aComm) {
+function loadOneTab(aArg, aReportProgress, aComm) {
 	var window = Services.wm.getMostRecentWindow('navigator:browser');
 	window.gBrowser.loadOneTab(aArg.URL, aArg.params);
-}
-function globalRecordStop() {
-	if (gRecord) {
-		gRecord.recorder.stop();
-	}
-}
-function globalRecordStart(id) {
-	var w = Services.appShell.hiddenDOMWindow;
-	w.navigator.mediaDevices.getUserMedia({
-		video: {
-			mediaSource: 'screen'
-		}
-	}).then(function(stream) {
-		// do something with the stream
-		var gRecord = {
-			id,
-			recorder: new w.MediaRecorder(stream)
-		};
-
-		gRecord.recorder.addEventListener('dataavailable', function(e) {
-			// console.log('data avail, e:')
-			gRecord = null;
-			var fileReader = new w.FileReader();
-			fileReader.onload = function() {
-				var arrbuf = this.result;
-				gWkComm.putMessage('globalRecordComplete', { id, arrbuf, __XFER:{arrbuf:0} });
-			};
-			fileReader.readAsArrayBuffer(e.data);
-		}, false);
-
-
-		gRecord.recorder.start();
-	}, function(aReason) {
-		console.error('failed, aReason:', aReason);
-	});
 }
 // end - functions called by worker
 
 // testing commapi
-function testCallBootstrapFromContent(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+function testCallBootstrapFromContent(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
 	// called by framescript
+	// aReportProgress is undefined as there is no callback in content for this test
 	console.error('in bootstrap, aArg:', aArg);
 }
-function testCallBootstrapFromContent_transfer(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+function testCallBootstrapFromContent_transfer(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
 	// called by framescript
+	// aReportProgress is undefined as there is no callback in content for this test
 	console.error('in bootstrap, aArg:', aArg);
 }
-function testCallBootstrapFromContent_justcb(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+function testCallBootstrapFromContent_justcb(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
 	// called by framescript
 	console.error('in bootstrap, aArg:', aArg);
 	return 1;
 }
-function testCallBootstrapFromContent_justcb_thattransfers(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+function testCallBootstrapFromContent_justcb_thattransfers(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
 	// called by framescript
 	console.error('in bootstrap, aArg:', aArg);
 	var send = {
@@ -434,7 +382,7 @@ function testCallBootstrapFromContent_justcb_thattransfers(aArg, aMessageManager
 	};
 	return send;
 }
-function testCallBootstrapFromContent_cbAndFullXfer(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+function testCallBootstrapFromContent_cbAndFullXfer(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
 	console.error('in bootstrap, aArg:', aArg);
 	var argP = {start:1, bufP:new ArrayBuffer(10), __XFER:['bufP']};
 	aReportProgress(argP);
@@ -448,7 +396,8 @@ function testCallBootstrapFromContent_cbAndFullXfer(aArg, aMessageManager, aBrow
 //start - common helper functions
 // rev3 - not yet comitted to gist - reports back filter ext picked
 // rev2 - not yet commited to gist.github
-function browseFile(aArg, aComm) {
+function browseFile(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
+	// called by worker, or by framescript in which case it has aMessageManager and aBrowser as final params
 	var { aDialogTitle, aOptions } = aArg
 	if (!aOptions) { aOptions={} }
 
@@ -656,7 +605,7 @@ function crossprocComm(aChannelId) {
 
 			if (payload.method) {
 				if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') }  // dev line remove on prod
-				var rez_bs_call__for_fs = scope[payload.method](payload.arg, messageManager, browser, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid, messageManager}) : undefined);  // only on bootstrap side, they get extra 2 args
+				var rez_bs_call__for_fs = scope[payload.method](payload.arg, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid, messageManager}) : undefined, this, messageManager, browser);  // only on bootstrap side, they get extra 2 args
 				// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
 				if (payload.cbid) {
 					if (rez_bs_call__for_fs && rez_bs_call__for_fs.constructor.name == 'Promise') {
@@ -748,7 +697,7 @@ function contentComm(aContentWindow, aPort1, aPort2, onHandshakeComplete) {
 				return;
 			}
 			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') } // dev line remove on prod
-			var rez_bs_call__for_win = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			var rez_bs_call__for_win = scope[payload.method](payload.arg, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined, this);
 			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
 			console.log('rez_bs_call__for_win:', rez_bs_call__for_win);
 			if (payload.cbid) {
@@ -980,7 +929,7 @@ function workerComm(aWorkerPath, onBeforeInit, onAfterInit, aWebWorker) {
 				return;
 			}
 			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') } // dev line remove on prod
-			var rez_bs_call__for_worker = scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
+			var rez_bs_call__for_worker = scope[payload.method](payload.arg, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined, this);
 			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
 			console.log('rez_bs_call__for_worker:', rez_bs_call__for_worker);
 			if (payload.cbid) {
@@ -1030,14 +979,14 @@ function callInWorker(aMethod, aArg, aCallback, aExtra1, aExtra2) {
 		// framescript or content (NOT contentOfFramescript) called this
 		if (arguments.length == 3) {
 			// called by content - 3 args - scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
-			var aComm = aArg;
-			var aReportProgress = aCallback;
+			var aReportProgress = aArg;
+			var aComm = aCallback;
 		} else if (arguments.length == 5) {
 			// called by framescript - 5 args - scope[payload.method](payload.arg, messageManager, browser, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
-			var aMessageManager = aArg;
-			var aBrowser = aCallback;
-			var aComm = aExtra1;
-			var aReportProgress = aExtra2;
+			var aReportProgress = aArg;
+			var aComm = aCallback;
+			var aMessageManager = aExtra1;
+			var aBrowser = aExtra2;
 		}
 		else { console.error('arguments.length is ' + arguments.length + ' i didnt handle who calls it with this much'); throw new Error('arguments.length is ' + arguments.length + ' i didnt handle who calls it with this much'); }
 		var {m:aMethod, a:aArg} = aMethod;
