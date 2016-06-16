@@ -96,6 +96,9 @@ switch (gPage.name) {
 			var UPDATE_ALERT = 'UPDATE_ALERT';
 			var REMOVE_ALERT = 'REMOVE_ALERT';
 
+			var SET_DIALOG = 'SET_DIALOG'
+			var DESTROY_DIALOG = 'DESTROY_DIALOG';
+
 			// non-action - SET_PARAM systemvideo
 			var SYSTEMVIDEO_MONITOR = 'SYSTEMVIDEO_MONITOR';
 			var SYSTEMVIDEO_WINDOW = 'SYSTEMVIDEO_WINDOW';
@@ -173,6 +176,19 @@ switch (gPage.name) {
 				}
 			}
 
+			function setDialog(items) {
+				return {
+					type: SET_DIALOG,
+					items
+				}
+			}
+
+			function destroyDialog() {
+				return {
+					type: DESTROY_DIALOG
+				}
+			}
+
 		break;
 }
 
@@ -195,6 +211,7 @@ switch (gPage.name) {
 				recording: enum[RECSTATE_UNINIT, RECSTATE_WAITING_USER, RECSTATE_RECORDING, RECSTATE_STOPPED, RECSTATE_PAUSED],
 				activeactions: {group:serviceid} // for valid group and serviceid see my rendering of NewRecordingPage, thats where this is decided, in each BootstrapSplitButtonDropdown
 				messages: [{ id:Date.now, color:string, title:string, body:string, dismissible:boolean }] // id should be time
+				dialog: null
 			};
 			*/
 
@@ -256,12 +273,26 @@ switch (gPage.name) {
 				}
 			}
 
+			function dialog(state=null, action) {
+				switch (action.type) {
+					case SET_DIALOG:
+							return { items: action.items };
+						break;
+					case DESTROY_DIALOG:
+							return null;
+						break;
+					default:
+						return state;
+				}
+			}
+
 			pageReducers = {
 				params,
 				options,
 				recording,
 				activeactions,
-				messages
+				messages,
+				dialog
 			};
 
 		break;
@@ -305,7 +336,7 @@ var NewRecordingPage = React.createClass({
 	},
 	render() {
 		var { param } = this.props; // passed from parent component
-		var { mic, systemaudio, webcam, fps, systemvideo, recording, activeactions, messages } = this.props; // passed from mapStateToProps
+		var { mic, systemaudio, webcam, fps, systemvideo, recording, activeactions, messages, dialog } = this.props; // passed from mapStateToProps
 		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication, updateRecStateUser, updateRecStateStop, updateRecStatePause, updateRecStateRecording, updateRecStateUninit, chgActionSaveQuick, chgActionSaveBrowse, chgActionUploadGfycatAnon, chgActionUploadGfycat, chgActionUploadYoutube, chgActionShareFacebook, chgActionShareTwitter } = this.props; // passed from mapDispatchToProps // removed `chgActionUploadImgurAnon, chgActionUploadImgur` as i deprecated imgur
 		// console.log('NewRecordingPage props:', this.props);
 		// console.log('activations in newrecordingpage:', activeactions);
@@ -360,6 +391,7 @@ var NewRecordingPage = React.createClass({
 			mainClassName += ' recording_stopped'; // stopped, so show preview
 		}
 		return React.createElement('div', { id:'NewRecordingPage', className:'container page' + mainClassName },
+			dialog ? React.createElement(ConfirmUI, dialog) : undefined,
 			React.createElement('div', { className:'header clearfix' },
 				React.createElement('h3', { className:'pull-right' },
 					formatStringFromNameCore('addon_name', 'main')
@@ -551,13 +583,39 @@ var NewRecordingPage = React.createClass({
 		var group = 'share';
 		var serviceid = activeactions[group];
 
-		processAction( { serviceid } );
+		if (serviceid == 'twitter') {
+			store.dispatch(setDialog([
+				{ label: 'Looping GIF', onClick:this.twitterGif },
+				{ label: 'Video', onClick:this.twitterVideo }
+			]))
+		} else {
+			processAction( { serviceid } );
+		}
 	},
 	// end - action handlers
 	// alert box handler
 	dismiss_dispatcher: function(id) {
 		var { removeAlert } = this.props;
 		removeAlert(id);
+	},
+	// dialog onClicks
+	twitterGif: function() {
+		store.dispatch(destroyDialog());
+		processAction({
+			serviceid: 'twitter',
+			action_options: {
+				convert_to_ext: 'gif'
+			}
+		});
+	},
+	twitterVideo: function() {
+		store.dispatch(destroyDialog());
+		processAction({
+			serviceid: 'twitter',
+			action_options: {
+				convert_to_ext: 'mp4'
+			}
+		});
 	}
 });
 
@@ -574,11 +632,6 @@ function processAction(aArg) {
 		aArg.__XFER = ['arrbuf'];
 		aArg.id = Date.now(); // action_id which is action_tim
 
-		if (aArg.serviceid == 'twitter') {
-			aArg.action_options = {
-				convert_to_ext: 'mp4'
-			};
-		}
 		callInWorker('processAction', aArg, function(status, aComm) {
 			console.log('back in window after calling processAction, resulting status:', status);
 			if (status.__PROGRESS) {
@@ -638,6 +691,37 @@ var BootstrapAlert = React.createClass({
 	 	);
 	}
 });
+
+var ConfirmUI = React.createClass({
+	// inspired by https://developer.mozilla.org/en-US/docs/Mozilla/Tech/XPCOM/Reference/Interface/nsIPromptService#confirmEx_example
+	// and https://react-bootstrap.github.io/components.html#buttons-sizes block buttons in well
+	componentDidMount: function() {
+		setTimeout(function() {
+			document.getElementById('confirmui_dialog').style.bottom = '';
+		}, 100);
+	},
+	render: function() {
+		var { caption, items } = this.props;
+		/*
+		caption: string
+		items: array[objects]
+			{
+				label: string
+				onClick: function
+			}
+		*/
+		return React.createElement('div', { id:'confirmui_cover' },
+			React.createElement('div', { id:'confirmui_dialog', className:'well', style:{bottom:'100vh'} },
+				// React.createElement('h3', undefined,
+				// 	caption
+				// ),
+				items.map(item => React.createElement('button', { className:'btn-block btn btn-lg btn-default', onClick:item.onClick },
+					item.label
+				))
+			)
+		)
+	}
+})
 
 const BootstrapButton = ({ children, className, color='default', glyph, name, disabled, active, unsupported, onClick, aria, data }) => {
 	// active,disabled,unsupported is optional, can be undefined, else bool
@@ -1074,7 +1158,8 @@ var NewRecordingContainer = ReactRedux.connect(
 			systemvideo: state.params.systemvideo,
 			recording: state.recording,
 			activeactions: state.activeactions,
-			messages: state.messages
+			messages: state.messages,
+			dialog: state.dialog
 		}
 	},
 	function mapDispatchToProps(dispatch, ownProps) {

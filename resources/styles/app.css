@@ -117,6 +117,40 @@ button {
     min-width: 100%;
 }
 
+/* ConfirumUI element */
+
+#confirmui_cover {
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    z-index: 900;
+    background-color: rgba(0, 0, 0, 0);
+    background-image: none;
+    top: 0;
+    left: 0;
+}
+#confirmui_dialog h3 {
+    margin: 0 0 15px 0;
+}
+#confirmui_dialog {
+    width: 50vw;
+    position: absolute;
+    left: 25vw;
+    bottom: 40vh;
+    background-color: #fff;
+    background-image: none;
+    transition: bottom 300ms;
+}
+#confirmui_dialog button {
+    background-color: #fff;
+    background-image: none;
+}
+
+#confirmui_dialog button:hover {
+    background-color: #fff;
+    background-image: inherit;
+}
+
 /* start NewRecordingPage */
 #NewRecordingPage a {
     outline: 0;
