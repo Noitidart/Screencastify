@@ -410,6 +410,41 @@ function globalRecordStart(id) {
 }
 // end - functions called by worker
 
+// testing commapi
+function testCallBootstrapFromContent(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+	// called by framescript
+	console.error('in bootstrap, aArg:', aArg);
+}
+function testCallBootstrapFromContent_transfer(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+	// called by framescript
+	console.error('in bootstrap, aArg:', aArg);
+}
+function testCallBootstrapFromContent_justcb(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+	// called by framescript
+	console.error('in bootstrap, aArg:', aArg);
+	return 1;
+}
+function testCallBootstrapFromContent_justcb_thattransfers(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+	// called by framescript
+	console.error('in bootstrap, aArg:', aArg);
+	var send = {
+		num: 1,
+		buf: new ArrayBuffer(20),
+		__XFER: ['buf']
+	};
+	return send;
+}
+function testCallBootstrapFromContent_cbAndFullXfer(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+	console.error('in bootstrap, aArg:', aArg);
+	var argP = {start:1, bufP:new ArrayBuffer(10), __XFER:['bufP']};
+	aReportProgress(argP);
+	console.log('argP.bufP:', argP.bufP);
+	var argF = {end:1, bufF:new ArrayBuffer(10), __XFER:['bufF']};
+	var deferred = new Deferred();
+	deferred.resolve(argF);
+	return deferred.promise;
+}
+
 //start - common helper functions
 // rev3 - not yet comitted to gist - reports back filter ext picked
 // rev2 - not yet commited to gist.github
@@ -616,12 +651,12 @@ function crossprocComm(aChannelId) {
 			}
 			var browser = e.target;
 			var payload = e.data;
-			console.log('bootstrap crossprocComm - incoming, payload:', payload, 'messageManager:', messageManager, 'browser:', browser, 'e:', e);
+			console.log('bootstrap crossprocComm - incoming, payload:', payload); // , 'messageManager:', messageManager, 'browser:', browser, 'e:', e);
 			// console.log('this in receiveMessage bootstrap:', this);
 
 			if (payload.method) {
 				if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') }  // dev line remove on prod
-				var rez_bs_call__for_fs = scope[payload.method](payload.arg, messageManager, browser, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);  // only on bootstrap side, they get extra 2 args
+				var rez_bs_call__for_fs = scope[payload.method](payload.arg, messageManager, browser, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid, messageManager}) : undefined);  // only on bootstrap side, they get extra 2 args
 				// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
 				if (payload.cbid) {
 					if (rez_bs_call__for_fs && rez_bs_call__for_fs.constructor.name == 'Promise') {
@@ -683,7 +718,7 @@ function crossprocComm(aChannelId) {
 		// devuser MUST NEVER bind reportProgress. as it is bound to {THIS:this, cbid:cbid}
 		// devuser must set up the aCallback they pass to initial putMessage to handle being called with an object with key __PROGRESS:1 so they know its not the final reply to callback, but an intermediate progress update
 		aProgressArg.__PROGRESS = 1;
-		this.THIS.putMessage(this.cbid, aProgressArg);
+		this.THIS.transcribeMessage(this.messageManager, this.cbid, aProgressArg);
 	};
 
 	Services.mm.addMessageListener(aChannelId, this.listener);
@@ -1018,10 +1053,10 @@ function callInWorker(aMethod, aArg, aCallback, aExtra1, aExtra2) {
 			});
 			return deferred.promise;
 		} else {
-			gWkComm.postMessage(aMethod, aArg);
+			gWkComm.putMessage(aMethod, aArg);
 		}
 	} else {
-		gWkComm.postMessage(aMethod, aArg, aCallback);
+		gWkComm.putMessage(aMethod, aArg, aCallback);
 	}
 }
 // end - CommAPI

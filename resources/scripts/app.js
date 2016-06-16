@@ -977,7 +977,107 @@ var NewRecordingContainer = ReactRedux.connect(
 
 // end - react-redux
 
+// testing commapi
+// no callback (so obviously no progress), no transfer
+function doTestCallBootstrap() {
+	callInBootstrap('testCallBootstrapFromContent', 'hi');
+}
+function doTestCallFramescript() {
+	callInFramescript('testCallFramescriptFromContent', 'hi');
+}
+function doTestCallWorker() {
+	callInWorker('testCallWorkerFromContent', 'hi');
+}
+// no callback (so obviously no progress), just transfer
+function doTestCallBootstrap_transfer() {
+	var arg = {str:'hi',buf:new ArrayBuffer(10),__XFER:['buf']};
+	callInBootstrap('testCallBootstrapFromContent_transfer', arg);
+	console.log('arg.buf:', arg.buf);
+}
+function doTestCallFramescript_transfer() {
+	var arg = {str:'hi',buf:new ArrayBuffer(10),__XFER:['buf']};
+	callInFramescript('testCallFramescriptFromContent_transfer', arg);
+	console.log('arg.buf:', arg.buf);
+}
+function doTestCallWorker_transfer() {
+	var arg = {str:'hi',buf:new ArrayBuffer(10),__XFER:['buf']};
+	callInWorker('testCallWorkerFromContent_transfer', arg);
+	console.log('arg.buf:', arg.buf);
+}
 
+// with callback (no progress), no transfer
+function doTestCallBootstrap_justcb() {
+	var arg = 'hi';
+	callInBootstrap('testCallBootstrapFromContent_justcb', arg, function(aArg, aComm) {
+		console.log('back in content, aArg:', aArg, 'arguments:', arguments);
+	});
+}
+function doTestCallFramescript_justcb() {
+	var arg = 'hi';
+	callInFramescript('testCallFramescriptFromContent_justcb', arg, function(aArg, aComm) {
+		console.log('back in content, aArg:', aArg, 'arguments:', arguments);
+	});
+}
+function doTestCallWorker_justcb() {
+	var arg = 'hi';
+	callInWorker('testCallWorkerFromContent_justcb', arg, function(aArg, aComm) {
+		console.log('back in content, aArg:', aArg, 'arguments:', arguments);
+	});
+}
+
+// with callback (no progress), no transfer, but callback transfers
+function doTestCallBootstrap_justcb_thattransfers() {
+	var arg = 'hi';
+	callInBootstrap('testCallBootstrapFromContent_justcb_thattransfers', arg, function(aArg, aComm) {
+		console.log('back in content, aArg:', aArg, 'arguments:', arguments);
+	});
+}
+function doTestCallFramescript_justcb_thattransfers() {
+	var arg = 'hi';
+	callInFramescript('testCallFramescriptFromContent_justcb_thattransfers', arg, function(aArg, aComm) {
+		console.log('back in content, aArg:', aArg, 'arguments:', arguments);
+	});
+}
+function doTestCallWorker_justcb_thattransfers() {
+	var arg = 'hi';
+	callInWorker('testCallWorkerFromContent_justcb_thattransfers', arg, function(aArg, aComm) {
+		console.log('back in content, aArg:', aArg, 'arguments:', arguments);
+	});
+}
+// with callback with progress, transfer to, progress transfers back, and final transfers back to callback
+function doTestCallFramescript_cbAndFullXfer() {
+	var arg = {str:'hi',bufA:new ArrayBuffer(20),__XFER:['bufA']};
+	callInFramescript('testCallFramescriptFromContent_cbAndFullXfer', arg, function(aArg, aComm) {
+		if (aArg.__PROGRESS) {
+			console.log('PROGRESS back in content, aArg:', aArg, 'arguments:', arguments);
+		} else {
+			console.log('FINALIZED back in content, aArg:', aArg, 'arguments:', arguments);
+		}
+	});
+	console.log('arg.bufA:', arg.bufA);
+}
+function doTestCallBootstrap_cbAndFullXfer() {
+	var arg = {str:'hi',bufA:new ArrayBuffer(10),__XFER:['bufA']};
+	callInBootstrap('testCallBootstrapFromContent_cbAndFullXfer', arg, function(aArg, aComm) {
+		if (aArg.__PROGRESS) {
+			console.log('PROGRESS back in content, aArg:', aArg, 'arguments:', arguments);
+		} else {
+			console.log('FINALIZED back in content, aArg:', aArg, 'arguments:', arguments);
+		}
+	});
+	console.log('arg.bufA:', arg.bufA);
+}
+function doTestCallWorker_cbAndFullXfer() {
+	var arg = {str:'hi',bufA:new ArrayBuffer(30),__XFER:['bufA']};
+	callInWorker('testCallWorkerFromContent_cbAndFullXfer', arg, function(aArg, aComm) {
+		if (aArg.__PROGRESS) {
+			console.log('PROGRESS back in content, aArg:', aArg, 'arguments:', arguments);
+		} else {
+			console.log('FINALIZED back in content, aArg:', aArg, 'arguments:', arguments);
+		}
+	});
+	console.log('arg.bufA:', arg.bufA);
+}
 // start - common helper functions
 
 function formatStringFromNameCore(aLocalizableStr, aLoalizedKeyInCoreAddonL10n, aReplacements) {
@@ -1055,23 +1155,36 @@ function contentComm(onHandshakeComplete) {
 	this.putMessage = function(aMethod, aArg, aCallback) {
 		// aMethod is a string - the method to call in framescript
 		// aCallback is a function - optional - it will be triggered when aMethod is done calling
+
+		// determine aTransfers
 		var aTransfers;
-		if (aArg && aArg.__XFER) {
+		var xferScope;
+		var xferIterable;
+		if (aArg) {
+			if (aArg.__XFER) {
+				xferIterable = aArg.__XFER;
+				xferScope = aArg;
+			} else if (aArg.a && aArg.m && aArg.a.__XFER) { // special handle for callIn***
+				xferIterable = aArg.a.__XFER;
+				xferScope = aArg.a;
+			}
+		}
+		if (xferScope) {
 			// if want to transfer stuff aArg MUST be an object, with a key __XFER holding the keys that should be transferred
 			// __XFER is either array or object. if array it is strings of the keys that should be transferred. if object, the keys should be names of the keys to transfer and values can be anything
 			aTransfers = [];
-			var __XFER = aArg.__XFER;
-			if (Array.isArray(__XFER)) {
-				for (var p of __XFER) {
-					aTransfers.push(aArg[p]);
+			if (Array.isArray(xferIterable)) {
+				for (var p of xferIterable) {
+					aTransfers.push(xferScope[p]);
 				}
 			} else {
 				// assume its an object
-				for (var p in __XFER) {
-					aTransfers.push(aArg[p]);
+				for (var p in xferIterable) {
+					aTransfers.push(xferScope[p]);
 				}
 			}
 		}
+
 		var cbid = null;
 		if (typeof(aMethod) == 'number') {
 			// this is a response to a callack waiting in framescript

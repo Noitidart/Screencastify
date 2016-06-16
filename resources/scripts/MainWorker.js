@@ -595,6 +595,49 @@ function processAction(aArg, aComm) {
 
 // End - Addon Functionality
 
+
+// testing commapi
+function testCallWorkerFromContent(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+	// called by framescript
+	console.error('in worker, aArg:', aArg);
+}
+function testCallWorkerFromContent_transfer(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+	// called by framescript
+	console.error('in worker, aArg:', aArg);
+}
+function testCallWorkerFromContent_justcb(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+	// called by framescript
+	console.error('in worker, aArg:', aArg);
+	return 3;
+}
+function testCallWorkerFromContent_justcb_thattransfers(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+	// called by framescript
+	console.error('in worker, aArg:', aArg);
+	var send = {
+		num: 3,
+		buf: new ArrayBuffer(20),
+		__XFER: ['buf']
+	};
+	setTimeout(function() {
+		console.log('send.buf:', send.buf);
+	});
+	return send;
+}
+function testCallWorkerFromContent_cbAndFullXfer(aArg, aComm, aReportProgress) {
+	console.error('in worker, aArg:', aArg);
+	var argP = {start:3, bufP:new ArrayBuffer(30), __XFER:['bufP']};
+	aReportProgress(argP);
+	console.log('argP.bufP:', argP.bufP);
+	var argF = {end:3, bufF:new ArrayBuffer(30), __XFER:['bufF']};
+	var deferred = new Deferred();
+	setTimeout(function() {
+		deferred.resolve(argF);
+		setTimeout(function() {
+			console.log('argF.bufF:', argF.bufF);
+		}, 0);
+	}, 2000);
+	return deferred.promise;
+}
 // start - common helper functions
 function parseArguments(text) {
   text = text.replace(/\s+/g, ' ');

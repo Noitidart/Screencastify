@@ -272,6 +272,47 @@ function uninit() { // link4757484773732
 	}
 
 }
+// testing commapi
+function testCallFramescriptFromContent(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+	// called by framescript
+	console.error('in framescript, aArg:', aArg);
+}
+function testCallFramescriptFromContent_transfer(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+	// called by framescript
+	console.error('in framescript, aArg:', aArg);
+}
+function testCallFramescriptFromContent_justcb(aArg, aMessageManager, aBrowser, aComm, aReportProgress) {
+	// called by framescript
+	console.error('in framescript, aArg:', aArg);
+	return 2;
+}
+function testCallFramescriptFromContent_justcb_thattransfers(aArg, aComm, aReportProgress) {
+	// called by framescript
+	console.error('in worker, aArg:', aArg);
+	var send = {
+		num: 2,
+		buf: new ArrayBuffer(20),
+		__XFER: ['buf']
+	};
+	content.setTimeout(function() {
+		console.log('send.buf:', send.buf);
+	});
+	return send;
+}
+function testCallFramescriptFromContent_cbAndFullXfer(aArg, aComm, aReportProgress) {
+	console.error('in framescript, aArg:', aArg);
+	var argP = {start:2, bufP:new ArrayBuffer(20), __XFER:['bufP']};
+	aReportProgress(argP);
+	console.log('argP.bufP:', argP.bufP);
+	var argF = {end:2, bufF:new ArrayBuffer(20), __XFER:['bufF']};
+	var deferred = new Deferred();
+	content.setTimeout(function() {
+		deferred.resolve(argF);
+		console.log('argF.bufF:', argF.bufF);
+	}, 2000);
+	return deferred.promise;
+}
+
 
 // start - common helper functions
 function Deferred() {
@@ -332,7 +373,7 @@ function crossprocComm(aChannelId) {
 		// devuser MUST NEVER bind reportProgress. as it is bound to {THIS:this, cbid:cbid}
 		// devuser must set up the aCallback they pass to initial putMessage to handle being called with an object with key __PROGRESS:1 so they know its not the final reply to callback, but an intermediate progress update
 		aProgressArg.__PROGRESS = 1;
-		this.THIS.putMessage(this.cbid, aProgressArg);
+		this.THIS.transcribeMessage(this.cbid, aProgressArg);
 	};
 
 	gCrossprocComms.push(this);
@@ -366,7 +407,7 @@ function crossprocComm(aChannelId) {
 						rez_fs_call__for_bs.then(
 							function(aVal) {
 								console.log('Fullfilled - rez_fs_call__for_bs - ', aVal);
-								this.transcribeMessage(messageManager, payload.cbid, aVal);
+								this.transcribeMessage(payload.cbid, aVal);
 							}.bind(this),
 							genericReject.bind(null, 'rez_fs_call__for_bs', 0)
 						).catch(genericCatch.bind(null, 'rez_fs_call__for_bs', 0));
@@ -608,7 +649,10 @@ function callInWorker(aMethod, aArg, aCallback) {
 			});
 			return deferred.promise;
 		} else {
-			gBsComm.transcribeMessage(aMethod, aArg);
+			gBsComm.transcribeMessage('callInWorker', {
+				m: aMethod,
+				a: aArg
+			});
 		}
 	} else {
 		gBsComm.transcribeMessage('callInWorker', {
@@ -627,9 +671,14 @@ var gCommScope = {
 	},
 	callInBootstrap,
 	callInContent,
-	callInWorker
+	callInWorker,
 	// end - apart of CommAPI
 	// start - devuser defined functions
+	testCallFramescriptFromContent,
+	testCallFramescriptFromContent_transfer,
+	testCallFramescriptFromContent_justcb,
+	testCallFramescriptFromContent_justcb_thattransfers,
+	testCallFramescriptFromContent_cbAndFullXfer
 	// functions called by bootstrap
 	// ...
 	// functions called by content
