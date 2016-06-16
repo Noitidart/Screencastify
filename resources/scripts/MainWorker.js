@@ -9,7 +9,7 @@ var gBsComm;
 var gConversionArgs = {
 	gif: [
 		'-i', 'input.webm',
-		'-b', '2048k',
+		'-strict', '-2',
 		'output.gif'
 	],
 	mp4: [ // https://twittercommunity.com/t/ffmpeg-mp4-upload-to-twitter-unsupported-error/68602/2?u=noitidart
@@ -540,11 +540,7 @@ function action_browse(rec, aCallback) {
 
 			// convert it
 			var converted_files = ffmpeg_run({
-				arguments: [
-					'-i', 'input.webm',
-					'-vf', 'showinfo',
-					'-strict', '-2', 'output.mp4'
-				],
+				arguments: gConversionArgs[ext],
 				files: [{ data:(new Uint8Array(rec.arrbuf)), name:'input.webm' }],
 				TOTAL_MEMORY: 536870912
 			});
