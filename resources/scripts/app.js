@@ -92,6 +92,9 @@ switch (gPage.name) {
 			var TOGGLE_OPT = 'TOGGLE_OPT';
 			var UPDATE_RECSTATE = 'UPDATE_RECSTATE';
 			var CHANGE_ACTIVE_ACTION = 'CHANGE_ACTIVE_ACTION';
+			var ADD_ALERT = 'ADD_ALERT';
+			var UPDATE_ALERT = 'UPDATE_ALERT';
+			var REMOVE_ALERT = 'REMOVE_ALERT';
 
 			// non-action - SET_PARAM systemvideo
 			var SYSTEMVIDEO_MONITOR = 'SYSTEMVIDEO_MONITOR';
@@ -144,6 +147,32 @@ switch (gPage.name) {
 				}
 			}
 
+			function addAlert(id, obj) {
+				// obj can contain a mix of these keys
+					// acceptable keys: { body, color, dismissible, glyph, title }
+
+				return {
+					type: ADD_ALERT,
+					id,
+					obj
+				}
+			}
+
+			function updateAlert(id, obj) {
+				return {
+					type: UPDATE_ALERT,
+					id,
+					obj
+				}
+			}
+
+			function removeAlert(id) {
+				return {
+					type: REMOVE_ALERT,
+					id
+				}
+			}
+
 		break;
 }
 
@@ -165,6 +194,7 @@ switch (gPage.name) {
 				},
 				recording: enum[RECSTATE_UNINIT, RECSTATE_WAITING_USER, RECSTATE_RECORDING, RECSTATE_STOPPED, RECSTATE_PAUSED],
 				activeactions: {group:serviceid} // for valid group and serviceid see my rendering of NewRecordingPage, thats where this is decided, in each BootstrapSplitButtonDropdown
+				messages: [{ id:Date.now, color:string, title:string, body:string, dismissible:boolean }] // id should be time
 			};
 			*/
 
@@ -210,11 +240,28 @@ switch (gPage.name) {
 				}
 			}
 
+			function messages(state=[], action) {
+				switch (action.type) {
+					case REMOVE_ALERT:
+						return state.filter( msg => msg.id !== action.id );
+					case ADD_ALERT:
+						return [
+							...state,
+							Object.assign(action.obj, { id:action.id })
+						];
+					case UPDATE_ALERT:
+						return state.map( msg => msg.id === action.id ? Object.assign({}, msg, action.obj) : msg );
+					default:
+						return state;
+				}
+			}
+
 			pageReducers = {
 				params,
 				options,
 				recording,
-				activeactions
+				activeactions,
+				messages
 			};
 
 		break;
@@ -258,7 +305,7 @@ var NewRecordingPage = React.createClass({
 	},
 	render() {
 		var { param } = this.props; // passed from parent component
-		var { mic, systemaudio, webcam, fps, systemvideo, recording, activeactions } = this.props; // passed from mapStateToProps
+		var { mic, systemaudio, webcam, fps, systemvideo, recording, activeactions, messages } = this.props; // passed from mapStateToProps
 		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication, updateRecStateUser, updateRecStateStop, updateRecStatePause, updateRecStateRecording, updateRecStateUninit, chgActionSaveQuick, chgActionSaveBrowse, chgActionUploadGfycatAnon, chgActionUploadGfycat, chgActionUploadYoutube, chgActionShareFacebook, chgActionShareTwitter } = this.props; // passed from mapDispatchToProps // removed `chgActionUploadImgurAnon, chgActionUploadImgur` as i deprecated imgur
 		// console.log('NewRecordingPage props:', this.props);
 		// console.log('activations in newrecordingpage:', activeactions);
@@ -319,6 +366,15 @@ var NewRecordingPage = React.createClass({
 				),
 				React.createElement('h1', undefined,
 					formatStringFromNameCore('newrecording_header', 'app')
+				)
+			),
+			React.createElement('div', { id:'messages' },
+				!messages ? undefined : messages.map(msg =>
+					React.createElement(BootstrapAlert, Object.assign({}, msg, { dismiss_dispatcher: msg.dismissible ? this.dismiss_dispatcher : undefined }),
+						React.createElement('strong', undefined, msg.title),
+						msg.title ? ' ' : undefined,
+						msg.body
+					)
 				)
 			),
 			React.createElement('div', { id:'controls' },
@@ -496,8 +552,13 @@ var NewRecordingPage = React.createClass({
 		var serviceid = activeactions[group];
 
 		processAction( { serviceid } );
-	}
+	},
 	// end - action handlers
+	// alert box handler
+	dismiss_dispatcher: function(id) {
+		var { removeAlert } = this.props;
+		removeAlert(id);
+	}
 });
 
 
@@ -510,11 +571,30 @@ function processAction(aArg) {
 		aArg.arrbuf = this.result;
 		aArg.mimetype = gBlob.type;
 		aArg.time = gTime;
-		aArg.__XFER = {arrbuf:0};
+		aArg.__XFER = ['arrbuf'];
+		aArg.id = Date.now(); // action_id which is action_tim
 
-		callInWorker('processAction', aArg, function(status) {
+		callInWorker('processAction', aArg, function(status, aComm) {
 			console.log('back in window after calling processAction, resulting status:', status);
+			if (status.__PROGRESS) {
+				store.dispatch(updateAlert(aArg.id, {
+					body: status.reason
+				}));
+			} else {
+				store.dispatch(updateAlert(aArg.id, {
+					body: status.ok ? 'Success!' : 'Failed =(', // :l10n:
+					color: status.ok ? 'success' : 'danger',
+					glyph: status.ok ? 'ok-sign' : 'exclamation-sign',
+					dismissible: true
+				}))
+			}
 		});
+
+		store.dispatch(addAlert(aArg.id, {
+			title: formatStringFromNameCore('newrecording_title_' + aArg.serviceid, 'app'),
+			body: 'Processing...', // :l10n:
+			glyph: 'info-sign'
+		}));
 	};
 	fr.readAsArrayBuffer(gBlob);
 
@@ -534,6 +614,23 @@ var ManageRecordingPage = React.createClass({
 		);
 
 		//
+	}
+});
+
+var BootstrapAlert = React.createClass({
+	dismissClick: function() {
+		this.props.dismiss_dispatcher(this.props.id);
+	},
+	render: function() {
+		 var { id, glyph, dismiss_dispatcher, color='info', children } = this.props;
+		 return React.createElement('div', { className: 'alert alert-' + color + (dismiss_dispatcher ? ' alert-dismissible' : ''), role: 'alert' },
+	 		!dismiss_dispatcher ? undefined : React.createElement('button', { className:'close', type:'button', 'data-dismiss':'alert', 'aria-label':formatStringFromNameCore('close', 'app'), onClick:this.dismissClick },
+	 			'×'
+	 		),
+	 		!glyph ? undefined : React.createElement('span', { className:'glyphicon glyphicon-' + glyph, 'aria-hidden':'true' }),
+			!glyph ? undefined : ' ',
+	 		children
+	 	);
 	}
 });
 
@@ -956,7 +1053,11 @@ var NewRecordingMemo = {
 	chgActionUploadGfycat: () => store.dispatch(changeActiveAction('upload', 'gfycat')),
 	chgActionUploadYoutube: () => store.dispatch(changeActiveAction('upload', 'youtube')),
 	chgActionShareFacebook: () => store.dispatch(changeActiveAction('share', 'facebook')),
-	chgActionShareTwitter: () => store.dispatch(changeActiveAction('share', 'twitter'))
+	chgActionShareTwitter: () => store.dispatch(changeActiveAction('share', 'twitter')),
+	//
+	removeAlert: id => store.dispatch(removeAlert(id)),
+	addAlert: (id, color, title, body) => store.dispatch(addAlert(id, color, title, body)),
+	updateAlert: (id, obj) => store.dispatch(updateAlert(id, obj))
 };
 var NewRecordingContainer = ReactRedux.connect(
 	function mapStateToProps(state, ownProps) {
@@ -967,7 +1068,8 @@ var NewRecordingContainer = ReactRedux.connect(
 			fps: state.params.fps,
 			systemvideo: state.params.systemvideo,
 			recording: state.recording,
-			activeactions: state.activeactions
+			activeactions: state.activeactions,
+			messages: state.messages
 		}
 	},
 	function mapDispatchToProps(dispatch, ownProps) {

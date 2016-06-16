@@ -122,6 +122,10 @@ button {
     outline: 0;
 }
 
+#NewRecordingPage #messages .alert {
+    margin-top: -10px;
+}
+
 #NewRecordingPage .header h3 {
 	background: transparent url("chrome://screencastify/content/resources/images/icon-color22.png") no-repeat scroll 0 50%;
 	padding-left: 28px;
