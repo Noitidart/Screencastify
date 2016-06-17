@@ -31,8 +31,10 @@ function init(objCore) {
 	//console.log('in worker init');
 
 	core = objCore;
-	console.log('core:', core);
+
 	importScripts(core.addon.path.scripts + 'supplement/MainWorkerSupplement.js');
+	importScripts(core.addon.path.scripts + '3rd/hmac-sha1.js');
+	importScripts(core.addon.path.scripts + '3rd/enc-base64-min.js');
 
 	core.os.name = OS.Constants.Sys.Name.toLowerCase();
 	core.os.mname = core.os.toolkit.indexOf('gtk') == 0 ? 'gtk' : core.os.name; // mname stands for modified-name
@@ -69,14 +71,6 @@ self.onclose = function() {
 	console.log('ok ready to terminate');
 }
 
-function bootstrapTimeout(milliseconds) {
-	var mainDeferred_bootstrapTimeout = new Deferred();
-	setTimeout(function() {
-		mainDeferred_bootstrapTimeout.resolve();
-	}, milliseconds)
-	return mainDeferred_bootstrapTimeout.promise;
-}
-
 var gDataStore = {}; // key is recording id
 var gDataStoreNextId = 0;
 function createStore() {
@@ -89,6 +83,7 @@ function getStore(id) {
 	return gDataStore[id];
 }
 
+////// start - specific helper functions
 function autogenScreencastFileName(aDateGettime) {
 	// no extension generated
 
@@ -128,152 +123,141 @@ function autogenScreencastFileName(aDateGettime) {
 	return [formatStringFromName('screencast', 'main'), ' - ', Mmm, ' ', DD, ', ', YYYY, ' ', hh, ':', mm, ' ', AM].join('');
 }
 
-var gTwitterRecs = []; // array of recs that need injecting, arrbuf remains BUT it is the converted arraybuffer. i dont use converted_arrbuf because in case content needs to transfer it back to framescript to send it to bootstrap to send it back to worker, in case contentscript fails to attach it
-function checkGetNextTwitterInjectable(aArg, aComm) {
-	// called everytime twitter loads by framescript to test if it should inject contentscript
-	// aArg is not used, it is undefined
-	if (gTwitterRecs.length) {
-		console.log('yes has length');
-		var twitter_rec = gTwitterRecs.shift();
-		twitter_rec.__XFER = {arrbuf:0};
-		return twitter_rec;
-	} else {
-		return undefined;
+function buildPathForScreencast(path, rec, unsafe_filename) {
+	// unsafe_filename is either a string, or undefined. if undefined, rec.time is used with autogenScreencastFileName
+	// after unsafe_filename is a string, it is safedForPlatFS
+	if (!unsafe_filename) {
+		unsafe_filename = autogenScreencastFileName(unsafe_filename);
 	}
+
+	return OS.Path.join( path, safedForPlatFS(unsafe_filename, {repStr:'.'}) ) + '.' + rec.mimetype.substr(rec.mimetype.indexOf('/')+1);
 }
 
-function action_twitter(rec, aCallback, aReportProgress) {
+////// start - non-oauth actions
+function action_browse(rec, aCallback, aReportProgress) {
+	// action for save-browse
 
-	// start async-proc98222
-	var l10n_friendly_mimetype = {
-		mp4: 'video', // :l10n:
-		gif: 'GIF' // :l10n:
-	};
-
-	var shouldConvert = function() {
-		// checks if needs to convert
-		if (rec.mimetype.endsWith('/' + rec.action_options.convert_to_ext)) {
-			// no need to convert
-			oauthPost();
-		} else {
-			convert();
-		}
+	// start async-proc0003
+	var pass;
+	var browse = function() {
+		aReportProgress({
+			reason: 'Browse dialog opened...'
+		});
+		var file_ext = rec.mimetype.substr(rec.mimetype.indexOf('/')+1);
+		callInBootstrap(
+			'browseFile',
+			{
+				aDialogTitle: formatStringFromName('dialog_save_title', 'main'),
+				aOptions: {
+					mode: 'modeSave',
+					filters: [
+						formatStringFromName('webm', 'main'), '*.webm',
+						formatStringFromName('gif', 'main'), '*.gif',
+						formatStringFromName('mp4', 'main'), '*.mp4'
+					],
+					async: true,
+					win: 'navigator:browser',
+					defaultString: safedForPlatFS(autogenScreencastFileName(rec.time), {repStr:'.'}),
+					returnDetails: true
+				}
+			},
+			function(aArg, aComm) {
+				if (!aArg) {
+					aCallback({
+						status: false,
+						reason: 'Cancelled'
+					});
+				} else {
+					var {filepath, filter} = aArg;
+					var ext = filter.substr(2); // as i start filters with a *.
+					if (!filepath.toLowerCase().endsWith('.' + filter)) {
+						filepath += '.' + ext;
+					}
+					pass = { filepath, ext }; // pass is a collection of data used in the calls in async-proc, and in each call it destructures what it uses, and ignores what it doesnt. then passes pass to the next
+					convert(); // filepath should be safed, as the browse dialog wont let in illegal characters
+				}
+			}
+		);
 	};
 
 	var convert = function() {
-		console.log('converting to mp4');
+		var { ext } = pass;
 
-		// convert it
-		aReportProgress({
-			reason: 'Waiting to convert to ' + l10n_friendly_mimetype[rec.action_options.convert_to_ext] + '...'
-		});
+		if (ext == 'webm') {
+			// no need to convert
+			write();
+		} else {
+			console.log('converting to ' + ext);
 
-		gConvWkComm.putMessage('run', {
-			arrbuf: rec.arrbuf,
-			args: gConversionArgs[rec.action_options.convert_to_ext],
-			__XFER: ['arrbuf']
-		}, checkConverted)
+			// convert it
+			aReportProgress({
+				reason_code: 'CONVERTING_WAIT_' + ext
+			});
+
+			gConvWkComm.putMessage('run', {
+				arrbuf: rec.arrbuf,
+				args: gConversionArgs[ext],
+				__XFER: ['arrbuf']
+			}, checkConverted)
+		}
 	};
 
 	var checkConverted = function(aConvArg, aComm) {
+		var { ext } = pass;
+
 		if (aConvArg.__PROGRESS) {
 			switch(aConvArg.status) {
 				case 'CONV_STARTED':
 						aReportProgress({
-							reason: 'Converting to ' + l10n_friendly_mimetype[rec.action_options.convert_to_ext] + '...' // :l10n:
+							reason_code: 'CONVERTING_PROGRESS-' + ext
 						});
 					break;
 				case 'CONV_STDOUT':
 						var { stdout } = aConvArg;
 						aReportProgress({
-							reason: 'Converting to ' + l10n_friendly_mimetype[rec.action_options.convert_to_ext] + '... (' + stdout.substr(0, 144) + '...)' // :l10n:
+							reason_code: 'CONVERTING_PROGRESS-' + ext + '_' + stdout.substr(0, 144) + '...'
 						});
 					break;
 			}
 		} else {
 			if (aConvArg.status) {
-				rec.arrbuf = aConvArg.arrbuf;
-				rec.mimetype = rec.action_options.convert_to_ext == 'gif' ? 'image/gif' : 'video/mp4';
-
-				oauthPost();
+				pass.converted_arrbuf = aConvArg.arrbuf;
+				write();
 			} else {
 				aCallback({
 					ok: false,
-					reason: 'Conversion to ' + l10n_friendly_mimetype[rec.action_options.convert_to_ext] + ' failed.'
+					reason_code: 'CONVERTING_FAIL-' + ext
 				});
 			}
 		}
 	};
 
-	var oauthPost = function() {
-		// after conversion complete
-		aCallback({
-			ok: false,
-			reason: 'The flow for posting to Twitter is not yet setup.'
-		})
-	};
+	var write = function() {
+		var { filepath } = pass;
 
-	shouldConvert();
-	// end async-proc98222
-}
-
-var gFacebookRecs = [{arrbuf:new ArrayBuffer(10), mimetype:'video/webm'}]; // array of recs that need injecting, arrbuf remains BUT it is the converted arraybuffer. i dont use converted_arrbuf because in case content needs to transfer it back to framescript to send it to bootstrap to send it back to worker, in case contentscript fails to attach it
-function checkGetNextFacebookInjectable(aArg, aComm) {
-	// called everytime twitter loads by framescript to test if it should inject contentscript
-	// aArg is not used, it is undefined
-	if (gFacebookRecs.length) {
-		console.log('yes has length');
-		var facebook_rec = gFacebookRecs.shift();
-		facebook_rec.__XFER = {arrbuf:0};
-		return facebook_rec;
-	} else {
-		return undefined;
-	}
-}
-
-function action_facebook(rec, aCallback) {
-
-	// start async-proc98222
-	var pass = {};
-	var convert = function() {
-		console.log('converting to mp4');
-
-		// convert it
-		// var converted_files = ffmpeg_run({
-		// 	arguments: [
-		// 		'-i', 'input.webm',
-		// 		'-vf', 'showinfo',
-		// 		'-strict', '-2', 'output.mp4'
-		// 	],
-		// 	files: [{ data:(new Uint8Array(rec.arrbuf)), name:'input.webm' }],
-		// 	TOTAL_MEMORY: 536870912
-		// });
-		// console.log('conversion done, converted_files:', converted_files);
-		// pass.converted_arrbuf = converted_files[0].data;
-		// pass.converted_mimetype = 'video/mp4';
-		pass.converted_arrbuf = rec.arrbuf;
-		pass.converted_mimetype = 'video/webm';
-		launch(pass);
-	};
-
-	var launch = function(pass) {
-		// after conversion complete
-		rec.arrbuf = pass.converted_arrbuf;
-		rec.mimetype = pass.converted_mimetype;
-		gFacebookRecs.push(rec);
-		callInBootstrap('loadOneTab', {
-			URL: 'https://www.facebook.com',
-			params: {
-				inBackground: false
-			}
+		aReportProgress({
+			reason: formatStringFromName('newrecording_alertbody_writing', 'app')
 		});
+
+		try {
+			OS.File.writeAtomic( filepath, new Uint8Array(pass.converted_arrbuf || rec.arrbuf), {encoding:'utf-8'} );
+			aCallback({
+				ok: true
+			});
+		} catch (OSFileError) {
+			console.error('OSFileError:', OSFileError);
+			aCallback({
+				ok: false,
+				reason: 'Failed saving to disk at path "' + filepath + '"'
+			});
+		}
 	};
 
-	convert();
-	// end async-proc98222
+	browse();
+	// end async-proc0003
 }
 
-function action_gfycatanon(rec, aCallback) {
+function action_gfycatanon(rec, aCallback, aReportProgress) {
 	// start async-proc938
 
 	var YourOwnRandomString = randomString(10);
@@ -506,7 +490,7 @@ function action_quick(rec, aCallback, aReportProgress) {
 	var write = function(path) {
 		console.log('worker - action_quick - write');
 		aReportProgress({
-			reason: 'Writing to disk...'
+			reason: formatStringFromName('newrecording_alertbody_writing', 'app')
 		});
 		try {
 			OS.File.writeAtomic( buildPathForScreencast(path, rec), new Uint8Array(rec.arrbuf), {encoding:'utf-8'} );
@@ -525,146 +509,18 @@ function action_quick(rec, aCallback, aReportProgress) {
 	gsd();
 	// end async-proc3933
 }
+////// start - non-oauth actions
 
-function buildPathForScreencast(path, rec, unsafe_filename) {
-	// unsafe_filename is either a string, or undefined. if undefined, rec.time is used with autogenScreencastFileName
-	// after unsafe_filename is a string, it is safedForPlatFS
-	if (!unsafe_filename) {
-		unsafe_filename = autogenScreencastFileName(unsafe_filename);
-	}
-
-	return OS.Path.join( path, safedForPlatFS(unsafe_filename, {repStr:'.'}) ) + '.' + rec.mimetype.substr(rec.mimetype.indexOf('/')+1);
-}
-
-function action_browse(rec, aCallback, aReportProgress) {
-	// action for save-browse
-
-	var l10n_friendly_mimetype = {
-		mp4: 'video', // :l10n:
-		gif: 'GIF' // :l10n:
-	};
-
-	// start async-proc0003
-	var pass;
-	var browse = function() {
-		aReportProgress({
-			reason: 'Browse dialog opened...'
-		});
-		var file_ext = rec.mimetype.substr(rec.mimetype.indexOf('/')+1);
-		callInBootstrap(
-			'browseFile',
-			{
-				aDialogTitle: formatStringFromName('dialog_save_title', 'main'),
-				aOptions: {
-					mode: 'modeSave',
-					filters: [
-						formatStringFromName('webm', 'main'), '*.webm',
-						formatStringFromName('gif', 'main'), '*.gif',
-						formatStringFromName('mp4', 'main'), '*.mp4'
-					],
-					async: true,
-					win: 'navigator:browser',
-					defaultString: safedForPlatFS(autogenScreencastFileName(rec.time), {repStr:'.'}),
-					returnDetails: true
-				}
-			},
-			function(aArg, aComm) {
-				if (!aArg) {
-					aCallback({
-						status: false,
-						reason: 'Cancelled'
-					});
-				} else {
-					var {filepath, filter} = aArg;
-					var ext = filter.substr(2); // as i start filters with a *.
-					if (!filepath.toLowerCase().endsWith('.' + filter)) {
-						filepath += '.' + ext;
-					}
-					pass = { filepath, ext }; // pass is a collection of data used in the calls in async-proc, and in each call it destructures what it uses, and ignores what it doesnt. then passes pass to the next
-					convert(); // filepath should be safed, as the browse dialog wont let in illegal characters
-				}
-			}
-		);
-	};
-
-	var convert = function() {
-		var { ext } = pass;
-
-		if (ext == 'webm') {
-			// no need to convert
-			write();
-		} else {
-			console.log('converting to ' + ext);
-
-			// convert it
-			aReportProgress({
-				reason: 'Waiting to convert to ' + l10n_friendly_mimetype[ext] + '...'
-			});
-
-			gConvWkComm.putMessage('run', {
-				arrbuf: rec.arrbuf,
-				args: gConversionArgs[ext],
-				__XFER: ['arrbuf']
-			}, checkConverted)
-		}
-	};
-
-	var checkConverted = function(aConvArg, aComm) {
-		var { ext } = pass;
-
-		if (aConvArg.__PROGRESS) {
-			switch(aConvArg.status) {
-				case 'CONV_STARTED':
-						aReportProgress({
-							reason: 'Converting to ' + l10n_friendly_mimetype[ext] + '...' // :l10n:
-						});
-					break;
-				case 'CONV_STDOUT':
-						var { stdout } = aConvArg;
-						aReportProgress({
-							reason: 'Converting to ' + l10n_friendly_mimetype[ext] + '... (' + stdout.substr(0, 144) + '...)' // :l10n:
-						});
-					break;
-			}
-		} else {
-			if (aConvArg.status) {
-				pass.converted_arrbuf = aConvArg.arrbuf;
-				write();
-			} else {
-				aCallback({
-					ok: false,
-					reason: 'Conversion to ' + l10n_friendly_mimetype[ext] + ' failed.'
-				});
-			}
-		}
-	};
-
-	var write = function() {
-		var { filepath } = pass;
-
-		aReportProgress({
-			reason: 'Writing to disk...'
-		});
-
-		try {
-			OS.File.writeAtomic( filepath, new Uint8Array(pass.converted_arrbuf || rec.arrbuf), {encoding:'utf-8'} );
-			aCallback({
-				ok: true
-			});
-		} catch (OSFileError) {
-			console.error('OSFileError:', OSFileError);
-			aCallback({
-				ok: false,
-				reason: 'Failed saving to disk at path "' + filepath + '"'
-			});
-		}
-	};
-
-	browse();
-	// end async-proc0003
-}
 
 // start - functions called by bootstrap
+function bootstrapTimeout(milliseconds) {
+	var mainDeferred_bootstrapTimeout = new Deferred();
+	setTimeout(function() {
+		mainDeferred_bootstrapTimeout.resolve();
+	}, milliseconds)
+	return mainDeferred_bootstrapTimeout.promise;
+}
+
 function processAction(aArg, aReportProgress, aComm) {
 	var { serviceid, arrbuf, time, mimetype, action_options } = aArg;
 

@@ -402,11 +402,7 @@ var NewRecordingPage = React.createClass({
 			),
 			React.createElement('div', { id:'messages' },
 				!messages ? undefined : messages.map(msg =>
-					React.createElement(BootstrapAlert, Object.assign({}, msg, { dismiss_dispatcher: msg.dismissible ? this.dismiss_dispatcher : undefined }),
-						React.createElement('strong', undefined, msg.title),
-						msg.title ? ' ' : undefined,
-						msg.body
-					)
+					React.createElement(BootstrapAlert, Object.assign({}, msg, { dismiss_dispatcher: msg.dismissible ? this.dismiss_dispatcher : undefined }))
 				)
 			),
 			React.createElement('div', { id:'controls' },
@@ -639,22 +635,39 @@ function processAction(aArg) {
 		callInWorker('processAction', aArg, function(status, aComm) {
 			console.log('back in window after calling processAction, resulting status:', status);
 			if (status.__PROGRESS) {
-				store.dispatch(updateAlert(aArg.id, {
-					body: status.reason
-				}));
+				var updateAlertDict = {};
+				// color is either info or warning
+
+				// set color
+				updateAlertDict.color = status.reason_code && status.reason_code.startsWith('HOLD_') ? 'warning' : undefined;
+
+				// set glyph
+				updateAlertDict.glyph = status.reason_code && status.reason_code.startsWith('HOLD_') ? 'exclamation-sign' : 'info-sign';
+
+				// set body
+				updateAlertDict.body = status.reason_code || status.reason || 'Progress for unknown reason';
+
+				store.dispatch(updateAlert(aArg.id, updateAlertDict));
 			} else {
-				store.dispatch(updateAlert(aArg.id, {
-					body: status.ok ? 'Success!' : 'Failed =(', // :l10n:
-					color: status.ok ? 'success' : 'danger',
-					glyph: status.ok ? 'ok-sign' : 'exclamation-sign',
-					dismissible: true
-				}))
+				var updateAlertDict = { dismissible:true };
+				// color is either success or danger
+
+				// set color
+				updateAlertDict.color = status.ok ? 'success' : 'danger';
+
+				// set glyph
+				updateAlertDict.glyph = status.ok ? 'ok-sign' : 'remove-sign';
+
+				// set body
+				updateAlertDict.body = status.reason_code || status.reason || ( status.ok ? 'Success for unknown reason' : 'Failed for unknown reason' );
+
+				store.dispatch(updateAlert(aArg.id, updateAlertDict))
 			}
 		});
 
 		store.dispatch(addAlert(aArg.id, {
-			title: formatStringFromNameCore('newrecording_title_' + aArg.serviceid, 'app'),
-			body: 'Initializing...', // :l10n:
+			title: aArg.serviceid,
+			body: formatStringFromNameCore('newrecording_alertbody_init', 'app'),
 			glyph: 'info-sign'
 		}));
 	};
@@ -684,15 +697,83 @@ var BootstrapAlert = React.createClass({
 		this.props.dismiss_dispatcher(this.props.id);
 	},
 	render: function() {
-		 var { id, glyph, dismiss_dispatcher, color='info', children } = this.props;
-		 return React.createElement('div', { className: 'alert alert-' + color + (dismiss_dispatcher ? ' alert-dismissible' : ''), role: 'alert' },
-	 		!dismiss_dispatcher ? undefined : React.createElement('button', { className:'close', type:'button', 'data-dismiss':'alert', 'aria-label':formatStringFromNameCore('close', 'app'), onClick:this.dismissClick },
-	 			'×'
-	 		),
-	 		!glyph ? undefined : React.createElement('span', { className:'glyphicon glyphicon-' + glyph, 'aria-hidden':'true' }),
+		var { id, glyph, dismiss_dispatcher, color='info', children, title, body } = this.props;
+
+		var cChildren;
+ 		if (children) {
+			cChildren = children;
+		} else {
+			cChildren = [];
+			// setup title
+			if (title) {
+				if (core.addon.id == 'Screencastify@jetpack') {
+					// special for Screencastify
+					cChildren.push( React.createElement('strong', undefined, formatStringFromNameCore('newrecording_title_' + title, 'app')) );
+					cChildren.push(' ');
+				} else {
+					// normal - non Screencastify specific
+					cChildren.push(React.createElement('strong', undefined, title));
+					cChildren.push(' ');
+				}
+			}
+
+			// setup body
+			var body_case = /^[A-Z]+_+/m.exec(body);
+ 			if (core.addon.id == 'Screencastify@jetpack' && body_case) {
+ 				// create special for Screencastify
+				var body_rest = body.substr(0, body_case.length);
+				if (body_rest[0] == '-') {
+					body_rest = body_rest.substr(1);
+				}
+
+				switch (body_case) {
+					case 'CONVERTING_WAIT':
+							// CONVERTING_WAIT-gif
+							// CONVERTING_WAIT-mp4
+							cChildren.push( formatStringFromNameCore('newrecording_alertbody_convwait' + body_rest, 'app') );
+						break;
+					case 'CONVERTING_FAIL':
+							// CONVERTING_FAIL-gif
+							// CONVERTING_FAIL-mp4
+							cChildren.push( formatStringFromNameCore('newrecording_alertbody_convfail' + body_rest, 'app') );
+						break;
+					case 'CONVERTING_PROGRESS':
+							// CONVERTING_PROGRESS-gif_progress string here
+							var body_rest_pt1 = body_rest.substr( 0, body_rest.indexOf('_')-1 );
+							var body_rest_pt2 = body_rest.substr( 0, body_rest.indexOf('_')+1 );
+
+							cChildren.push( formatStringFromNameCore('newrecording_alertbody_convprog' + body_rest_pt1, 'app', [body_rest_pt2]) );
+						break;
+					default:
+						switch (title) {
+		 					case 'twitter':
+			 						switch (body_case) {
+			 							// case 'HOLD_NEEDS_USER_AUTH':
+			 							//
+			 							// 	break;
+			 							default:
+											cChildren.push('no special instructions setup yet for body of - ' + title + ' - ' + body);
+			 						}
+		 						break;
+							default:
+								cChildren.push('no special instructions setup yet for title of - ' + title);
+		 				}
+				}
+ 			} else {
+				if (body) {
+ 					cChildren.push( body );
+				}
+ 			}
+ 		}
+
+	 	return React.createElement('div', { className: 'alert alert-' + color + (dismiss_dispatcher ? ' alert-dismissible' : ''), role: 'alert' },
+			!dismiss_dispatcher ? undefined : React.createElement('button', { className:'close', type:'button', 'data-dismiss':'alert', 'aria-label':formatStringFromNameCore('close', 'app'), onClick:this.dismissClick },
+				'\u00D7'
+			),
+			!glyph ? undefined : React.createElement('span', { className:'glyphicon glyphicon-' + glyph, 'aria-hidden':'true' }),
 			!glyph ? undefined : ' ',
-	 		children
-	 	);
+			cChildren
+		);
 	}
 });
 
