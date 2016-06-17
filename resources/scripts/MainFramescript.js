@@ -143,7 +143,7 @@ var progressListener = {
 						// console.log('progressListener :: onStateChange, DOMWindow:', window);
 						if (window) {
 							var authorized = !url.toLowerCase().includes('error=access_denied');
-							window.location.href = 'about:screencastify?' + (authorized ? 'authorized' : 'denied') + '/' + url.toLowerCase().match(/screencastify_([a-z]+)/)[1];
+							window.location.href = 'about:screencastify?auth/' + url.toLowerCase().match(/screencastify_([a-z]+)/)[1] + '/' + (authorized ? 'approved' : 'denied');
 							console.log('progressListener :: onStateChange, ok replaced');
 						}
 					}

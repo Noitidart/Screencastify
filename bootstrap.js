@@ -347,6 +347,24 @@ function FHR() {
 function fetchCore(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
 	return core;
 }
+function closeSelfTab(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
+	var window = aBrowser.ownerDocument.defaultView;
+	var tabs = window.gBrowser.tabContainer.childNodes;
+	for (var tab of tabs) {
+		if (tab.linkedBrowser == aBrowser) {
+			window.gBrowser.removeTab(tab);
+			break;
+		}
+	}
+
+	var tabs = window.gBrowser.tabContainer.childNodes;
+	for (var tab of tabs) {
+		if (tab.linkedBrowser.currentURI.spec.incldues('screencastify?recording/new')) {
+			window.gBrowser.selectedTab = tab;
+			break;
+		}
+	}
+}
 // end - functions called by framescript
 
 // start - functions called by worker

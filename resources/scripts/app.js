@@ -1,6 +1,7 @@
 var core;
 var gFsComm;
 var gRecorder;
+var gPage;
 
 var gTime;
 var gBlob;
@@ -16,6 +17,9 @@ function getPage() {
 	var name = match[2] || 'index';
 	name = name[0].toUpperCase() + name.substr(1).toLowerCase();
 	var param = match[3]; // if page is index, there is no param, so this will be undefined
+	if (param.includes('/')) {
+		param = param.split('/');
+	}
 	name += 'Page';
 
 	// special page name/param combos
@@ -323,10 +327,47 @@ var App = React.createClass({
 	render() {
 		var { page } = this.props;
 		console.log('App props:', this.props);
-		console.log('container of page:', page.name.replace('Page', 'Container'));
+		// console.log('container of page:', page.name.replace('Page', 'Container'), gContent[page.name.replace('Page', 'Container')]);
+		// console.log('page.name:', page.name, gContent[page.name], uneval(gContent[page.name]));
 		var pageREl = gContent[page.name.replace('Page', 'Container')] || gContent[page.name] || InvalidPage;
+		// console.log(uneval(pageREl));
 
 		return React.createElement(pageREl, { param:page.param })
+	}
+});
+
+var AuthPage = React.createClass({
+	componentDidMount: function() {
+		document.querySelector('title').textContent = formatStringFromNameCore('newrecording_' + gPage.param[0], 'app') + ' Authorization'; // :l10n: formatStringFromNameCore('autorized_title', 'app');
+	},
+	closeSelfTab: function() {
+		callInBootstrap('closeSelfTab');
+	},
+	render: function() {
+		return React.createElement('div', { id:'AuthPage', className:'container page' },
+			React.createElement('div', { className:'header clearfix' },
+				React.createElement('h3', { className:'pull-right' },
+					formatStringFromNameCore('addon_name', 'main')
+				),
+				React.createElement('h1', undefined,
+					React.createElement('img', { id:'page_icon', src:core.addon.path.images+gPage.param[0]+'48.png' }),
+					formatStringFromNameCore('newrecording_' + gPage.param[0], 'app') + ' Authorization'// :l10n:
+				)
+			),
+			React.createElement('div', { className:'jumbotron' },
+				React.createElement('h1', undefined,
+					formatStringFromNameCore('auth_' + gPage.param[1], 'app')
+				),
+				React.createElement('p', { className:'lead' },
+					formatStringFromNameCore('auth_explain' + gPage.param[1], 'app')
+				),
+				React.createElement('p', { className:'lead' },
+					React.createElement('a', { className:'btn btn-lg btn-' + (gPage.param[1] == 'approved' ? 'success' : 'danger'), href:'javascript:void', role:'button', onClick:this.closeSelfTab },
+						formatStringFromNameCore(gPage.param[1] == 'approved' ? 'auth_returntodoing' : 'auth_closetab', 'app')
+					)
+				)
+			)
+		);
 	}
 });
 

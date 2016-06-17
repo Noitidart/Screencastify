@@ -151,6 +151,13 @@ button {
     background-image: inherit;
 }
 
+/* start AuthPage */
+#page_icon {
+    position: relative;
+    top: -3px;
+    padding-right: 8px;
+}
+
 /* start NewRecordingPage */
 #NewRecordingPage a {
     outline: 0;
@@ -160,7 +167,8 @@ button {
     margin-top: -10px;
 }
 
-#NewRecordingPage .header h3 {
+#NewRecordingPage .header h3,
+#AuthPage .header h3 {
 	background: transparent url("chrome://screencastify/content/resources/images/icon-color22.png") no-repeat scroll 0 50%;
 	padding-left: 28px;
 }
