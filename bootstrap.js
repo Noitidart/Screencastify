@@ -359,7 +359,7 @@ function closeSelfTab(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
 
 	var tabs = window.gBrowser.tabContainer.childNodes;
 	for (var tab of tabs) {
-		if (tab.linkedBrowser.currentURI.spec.incldues('screencastify?recording/new')) {
+		if (tab.linkedBrowser.currentURI.spec.includes('screencastify?recording/new')) {
 			window.gBrowser.selectedTab = tab;
 			break;
 		}

@@ -148,73 +148,15 @@ var progressListener = {
 						}
 					}
 				} else if (url.toLowerCase() == 'https://api.twitter.com/oauth/authorize' && window && window.document.body.innerHTML.includes('Screencastify')) {
-					if (window) {
-						window.location.href = 'about:screencastify?auth/twitter/denied';
+					if (flags & Ci.nsIWebProgressListener.STATE_START) {
+						aRequest.cancel(Cr.NS_BINDING_ABORTED);
+					} else if (flags & Ci.nsIWebProgressListener.STATE_STOP) {
+						if (window) {
+							window.location.href = 'about:screencastify?auth/twitter/denied';
+						}
 					}
 				}
 			}
-			// var data = {
-			// 	requestURL: request.QueryInterface(Ci.nsIChannel).URI.spec,
-			// 	windowId: webProgress.DOMWindowID,
-			// 	parentWindowId: getParentWindowId(webProgress.DOMWindow),
-			// 	status,
-			// 	stateFlags,
-			// };
-
-			// if (webProgress.DOMWindow.top != webProgress.DOMWindow) {
-			// 	// this is a frame element
-			// 	var webNav = webProgress.QueryInterface(Ci.nsIWebNavigation);
-			// 	if (!webNav.canGoBack) {
-			// 		// For some reason we don't fire onLocationChange for the
-			// 		// initial navigation of a sub-frame. So we need to simulate
-			// 		// it here.
-			// 	}
-			// }
-		},
-		onLocationChange: function(webProgress, aRequest, locationURI, flags) {
-			console.log('progressListener :: onLocationChange:', arguments);
-
-			// figure out the flags
-			var flagStrs = [];
-			for (var f in Ci.nsIWebProgressListener) {
-				if (!/a-z/.test(f)) { // if it has any lower case letters its not a flag
-					if (flags & Ci.nsIWebProgressListener[f]) {
-						flagStrs.push(f);
-					}
-				}
-			}
-			console.info('progressListener :: onLocationChange, flagStrs:', flagStrs);
-
-			// if (aRequest) {
-			// 	aRequest.cancel(Cr.NS_BINDING_ABORTED)
-			// }
-			// var data = {
-			// 	location: locationURI ? locationURI.spec : '',
-			// 	windowId: webProgress.DOMWindowID,
-			// 	parentWindowId: getParentWindowId(webProgress.DOMWindow),
-			// 	flags,
-			// };
-		},
-		onStatusChange: function(aWebProgress, aRequest, aStatus, aMessage) {
-			console.log('progressListener :: onStatusChange:', arguments);
-
-			// if (aRequest) {
-			// 	aRequest.cancel(Cr.NS_BINDING_ABORTED)
-			// }
-		},
-		onProgressChange: function(aWebProgress, aRequest, aCurSelfProgress, aMaxSelfProgress, aCurTotalProgress, aMaxTotalProgress) {
-			console.log('progressListener :: onProgressChange:', arguments);
-
-			// if (aRequest) {
-			// 	aRequest.cancel(Cr.NS_BINDING_ABORTED)
-			// }
-		},
-		onSecurityChange: function(aWebProgress, aRequest, aState) {
-			console.log('progressListener :: onSecurityChange:', arguments);
-
-			// if (aRequest) {
-			// 	aRequest.cancel(Cr.NS_BINDING_ABORTED)
-			// }
 		},
 		QueryInterface: function QueryInterface(aIID) {
 			if (aIID.equals(Ci.nsIWebProgressListener) || aIID.equals(Ci.nsISupportsWeakReference) || aIID.equals(Ci.nsISupports)) {

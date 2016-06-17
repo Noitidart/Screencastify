@@ -467,9 +467,9 @@ var NewRecordingPage = React.createClass({
 							name:formatStringFromNameCore('newrecording_upload', 'app'),
 							onClick: this.upload,
 							list: [
-								{ name:formatStringFromNameCore('newrecording_gfycatanon', 'app'), glyph:'star', active:(activeactions.upload=='gfycatanon'), onClick:chgActionUploadGfycatAnon },
-								{ name:formatStringFromNameCore('newrecording_gfycat', 'app'), glyph:'flash', active:(activeactions.upload=='gfycat'), onClick:chgActionUploadGfycat },
-								{ name:formatStringFromNameCore('newrecording_youtube', 'app'), glyph:'globe', active:(activeactions.upload=='youtube'), onClick:chgActionUploadYoutube }
+								{ name:formatStringFromNameCore('newrecording_gfycatanon', 'app'), glyph:'gfycatanon', active:(activeactions.upload=='gfycatanon'), onClick:chgActionUploadGfycatAnon },
+								{ name:formatStringFromNameCore('newrecording_gfycat', 'app'), glyph:'gfycat', active:(activeactions.upload=='gfycat'), onClick:chgActionUploadGfycat },
+								{ name:formatStringFromNameCore('newrecording_youtube', 'app'), glyph:'youtube', active:(activeactions.upload=='youtube'), onClick:chgActionUploadYoutube }
 								// { name:formatStringFromNameCore('newrecording_imguranon', 'app'), glyph:'cutlery', active:(activeactions.upload=='imguranon'), onClick:chgActionUploadImgurAnon },
 								// { name:formatStringFromNameCore('newrecording_imgur', 'app'), glyph:'usd', active:(activeactions.upload=='imgur'), onClick:chgActionUploadImgur }
 							]
@@ -481,8 +481,8 @@ var NewRecordingPage = React.createClass({
 							name:formatStringFromNameCore('newrecording_share', 'app'),
 							onClick: this.share,
 							list: [
-								{ name:formatStringFromNameCore('newrecording_facebook', 'app'), glyph:'tower', active:(activeactions.share=='facebook'), onClick:chgActionShareFacebook },
-								{ name:formatStringFromNameCore('newrecording_twitter', 'app'), glyph:'phone-alt', active:(activeactions.share=='twitter'), onClick:chgActionShareTwitter }
+								{ name:formatStringFromNameCore('newrecording_facebook', 'app'), glyph:'ffffff', active:(activeactions.share=='facebook'), onClick:chgActionShareFacebook },
+								{ name:formatStringFromNameCore('newrecording_twitter', 'app'), glyph:'tttttt', active:(activeactions.share=='twitter'), onClick:chgActionShareTwitter }
 							]
 						}
 					})
