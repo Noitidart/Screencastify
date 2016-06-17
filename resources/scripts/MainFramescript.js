@@ -241,22 +241,25 @@ var pageLoader = {
 		var contentWindow = aContentWindow;
 		console.log('ready enter');
 
+		var href_lower = contentWindow.location.href.toLowerCase();
 		switch (pageLoader.matches(contentWindow.location.href, contentWindow.location)) {
 			case MATCH_APP:
 					// about:screencastify app
 
-					// trick firefox into thinking my about page is https and hostname is screencastify by doing pushState
-					// doing setCurrentURI does not do the trick. i need to change the webNav.document.documentURI, which is done by pushState
-					var webNav = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
-					var docURI = webNav.document.documentURI;
-					console.log('docURI:', docURI);
-					if (!webNav.setCurrentURI) {
-						console.error('no setCurrentURI!!!!, i should reload the page till i get one');
-						return;
+					if (href_lower.includes('recording/new')) {
+						// trick firefox into thinking my about page is https and hostname is screencastify by doing pushState
+						// doing setCurrentURI does not do the trick. i need to change the webNav.document.documentURI, which is done by pushState
+						var webNav = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
+						var docURI = webNav.document.documentURI;
+						console.log('docURI:', docURI);
+						if (!webNav.setCurrentURI) {
+							console.error('no setCurrentURI!!!!, i should reload the page till i get one');
+							return;
+						}
+						webNav.setCurrentURI(Services.io.newURI('https://screencastify', null, null)); // need to setCurrentURI otherwise the pushState says operation insecure
+						contentWindow.history.pushState(null, null, docURI.replace(/about\:screencastify/i, 'https://screencastify')); // note: for mediaSource:'screen' it MUST be https://screencastify/SOMETHING_HERE otherwise it wont work
+						webNav.setCurrentURI(Services.io.newURI(docURI, null, null)); // make it look like about uri again
 					}
-					webNav.setCurrentURI(Services.io.newURI('https://screencastify', null, null)); // need to setCurrentURI otherwise the pushState says operation insecure
-					contentWindow.history.pushState(null, null, docURI.replace('about:screencastify', 'https://screencastify')); // note: for mediaSource:'screen' it MUST be https://screencastify/SOMETHING_HERE otherwise it wont work
-					webNav.setCurrentURI(Services.io.newURI(docURI, null, null)); // make it look like about uri again
 
 					gWinComm = new contentComm(contentWindow); // cross-file-link884757009
 
@@ -406,10 +409,11 @@ function init() {
 		// var webNav = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
 		// var docURI = webNav.document.documentURI;
 		// console.error('testing matches', content.window.location.href, 'docURI:', docURI);
-		switch (pageLoader.matches(content.window.location.href.toLowerCase(), content.window.location)) {
+		var href_lower = content.window.location.href.toLowerCase();
+		switch (pageLoader.matches(href_lower, content.window.location)) {
 			case MATCH_APP:
 					// for about pages, need to reload it, as it it loaded before i registered it
-					content.window.location.href = content.window.location.href.replace(/https\:\/\/screencastify\/?/, 'about:screencastify'); // cannot use .reload() as the webNav.document.documentURI is now https://screencastify/
+					content.window.location.href = content.window.location.href.replace(/https\:\/\/screencastify\/?/i, 'about:screencastify'); // cannot use .reload() as the webNav.document.documentURI is now https://screencastify/
 				break;
 			// case MATCH_TWITTER:
 			// 		// for non-about pages, i dont reload, i just initiate the ready of pageLoader

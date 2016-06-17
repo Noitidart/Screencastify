@@ -428,7 +428,7 @@ function launchOrFocusOrReuseTab(aArg, aReportProgress, aComm) {
 	// if nothing found for reuse then launch url in foreground of most recent browser
 	if (!reused) {
 		var window = Services.wm.getMostRecentWindow('navigator:browser');
-		window.gBrowser.loadOneTab(url, { inBackground:false });
+		window.gBrowser.loadOneTab(url, { inBackground:false, relatedToCurrent:true });
 	}
 
 }
