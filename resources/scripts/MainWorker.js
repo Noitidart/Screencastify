@@ -584,7 +584,47 @@ function testCallWorkerFromContent_cbAndFullXfer(aArg, aReportProgress, aComm) {
 	return deferred.promise;
 }
 // start - common helper functions
+function queryStringAsJson(aQueryString) {
+	var asJsonStringify = aQueryString;
+	asJsonStringify = asJsonStringify.replace(/&/g, '","');
+	asJsonStringify = asJsonStringify.replace(/=/g, '":"');
+	asJsonStringify = '{"' + asJsonStringify + '"}';
+	asJsonStringify = asJsonStringify.replace(/"(\d+|true|false)"/, function($0, $1) { return $1; });
+
+	return JSON.parse(asJsonStringify);
+}
+
+function to_rfc3986(aStr) {
+	// https://af-design.com/2008/03/14/rfc-3986-compliant-uri-encoding-in-javascript/
+	// i should test with the samples given here - https://dev.twitter.com/oauth/overview/percent-encoding-parameters
+	var tmp =  encodeURIComponent(aStr);
+	tmp = tmp.replace('!','%21');
+	tmp = tmp.replace('*','%2A');
+	tmp = tmp.replace('(','%28');
+	tmp = tmp.replace(')','%29');
+	tmp = tmp.replace("'",'%27');
+	return tmp;
+}
+
+function alphaStrOfObj(aObj, aParseFunc, aJoinStr, aDblQuot) {
+	var arr = Object.keys(aObj);
+	arr.sort();
+
+	if (!aParseFunc) {
+		aParseFunc = function(aToBeParsed) {
+			return aToBeParsed;
+		};
+	}
+
+	for (var i=0; i<arr.length; i++) {
+		arr[i] = aParseFunc(arr[i]) + '=' + (aDblQuot ? '"' : '') + aParseFunc(aObj[arr[i]]) + (aDblQuot ? '"' : '');
+	}
+
+	return arr.join(aJoinStr);
+}
+
 function parseArguments(text) {
+	// from videoconverter.js
   text = text.replace(/\s+/g, ' ');
   var args = [];
   // Allow double quotes to not split args.
@@ -606,6 +646,16 @@ function formatBytes(bytes,decimals) {
    var sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
    var i = Math.floor(Math.log(bytes) / Math.log(k));
    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+function nonce(length) {
+	// generates a nonce
+	var text = '';
+	var possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	for(var i = 0; i < length; i++) {
+		text += possible.charAt(Math.floor(Math.random() * possible.length));
+	}
+	return text;
 }
 
 function randomString(aLength) {

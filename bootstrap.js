@@ -353,6 +353,61 @@ function fetchCore(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
 function loadOneTab(aArg, aReportProgress, aComm) {
 	var window = Services.wm.getMostRecentWindow('navigator:browser');
 	window.gBrowser.loadOneTab(aArg.URL, aArg.params);
+
+	/* example usage
+	callInBootstrap('loadOneTab', {
+		URL: 'https://www.facebook.com',
+		params: {
+			inBackground: false
+		}
+	});
+	*/
+}
+function launchOrFocusOrReuseTab(aArg, aReportProgress, aComm) {
+	var { url, reuse_criteria } = aArg;
+
+	// search all tabs for url, if found then focus that tab
+	var focused = false;
+	var windows = Services.wm.getEnumerator('navigator:browser');
+	while (windows.hasMoreElements()) {
+		var window = windows.getNext();
+		var tabs = window.gBrowser.tabContainer.childNodes;
+		for (var tab of tabs) {
+			var browser = tab.linkedBrowser;
+			if (browser.currentURI.spec.toLowerCase() == url.toLowerCase()) {
+				window.focus();
+				window.gBrowser.selectedTab = tab;
+				focused = true;
+			}
+		}
+	}
+
+	// if not found then search all tabs for reuse_criteria, on first find, use that tab and load this url
+	var reused = false;
+	if (!focused && reuse_criteria) {
+		reuse_criteria = reuse_criteria.toLowerCase();
+
+		var windows = Services.wm.getEnumerator('navigator:browser');
+		while (windows.hasMoreElements()) {
+			var window = windows.getNext();
+			var tabs = window.gBrowser.tabContainer.childNodes;
+			for (var tab of tabs) {
+				var browser = tab.linkedBrowser;
+				if (browser.currentURI.spec.toLowerCase().includes(reuse_criteria)) {
+					window.focus();
+					browser.loadURI(url);
+					reused = true;
+				}
+			}
+		}
+	}
+
+	// if nothing found for reuse then launch url in foreground of most recent browser
+	if (!reused) {
+		var window = Services.wm.getMostRecentWindow('navigator:browser');
+		window.gBrowser.loadOneTab(url, { inBackground:false });
+	}
+
 }
 // end - functions called by worker
 

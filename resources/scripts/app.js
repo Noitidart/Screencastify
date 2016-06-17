@@ -696,6 +696,9 @@ var BootstrapAlert = React.createClass({
 	dismissClick: function() {
 		this.props.dismiss_dispatcher(this.props.id);
 	},
+	openAuthTabClick: function() {
+		callInWorker('openAuthTab', this.props.title);
+	},
 	render: function() {
 		var { id, glyph, dismiss_dispatcher, color='info', children, title, body } = this.props;
 
@@ -718,14 +721,20 @@ var BootstrapAlert = React.createClass({
 			}
 
 			// setup body
-			var body_case = /^[A-Z]+_+/m.exec(body);
+			var body_case = /^[A-Z]+_+[A-Z_]+/m.exec(body);
+			console.log('body_case exec:', body_case);
  			if (core.addon.id == 'Screencastify@jetpack' && body_case) {
  				// create special for Screencastify
-				var body_rest = body.substr(0, body_case.length);
+
+				body_case = body_case[0];
+				var body_rest = body.substr(body_case.length);
 				if (body_rest[0] == '-') {
 					body_rest = body_rest.substr(1);
 				}
 
+				console.log('body_case:', body_case, 'body_rest:', body_rest);
+
+				// non-title specific body
 				switch (body_case) {
 					case 'CONVERTING_WAIT':
 							// CONVERTING_WAIT-gif
@@ -744,21 +753,33 @@ var BootstrapAlert = React.createClass({
 
 							cChildren.push( formatStringFromNameCore('newrecording_alertbody_convprog' + body_rest_pt1, 'app', [body_rest_pt2]) );
 						break;
-					default:
-						switch (title) {
-		 					case 'twitter':
-			 						switch (body_case) {
-			 							// case 'HOLD_NEEDS_USER_AUTH':
-			 							//
-			 							// 	break;
-			 							default:
-											cChildren.push('no special instructions setup yet for body of - ' + title + ' - ' + body);
-			 						}
-		 						break;
-							default:
-								cChildren.push('no special instructions setup yet for title of - ' + title);
-		 				}
+					case 'HOLD_NEEDS_USER_AUTH':
+							// HOLD_NEEDS_USER_AUTH-serviceid
+							var servicename = formatStringFromNameCore('newrecording_' + body_rest, 'app');
+							cChildren.push( formatStringFromNameCore('newrecording_alertbody_userauth', 'app', [servicename]) );
+							cChildren.push( ' ' );
+							cChildren.push( React.createElement( 'a', { href:'javascript:void(0)', className:'alert-link', onClick:this.openAuthTabClick }, formatStringFromNameCore('newrecording_alertbody_openauth', 'app') ) )
+
+						break;
 				}
+
+				// title specific body
+				switch (title) {
+					case 'twitter':
+							switch (body_case) {
+								// case 'HOLD_NEEDS_USER_AUTH':
+								//
+								// 	break;
+							}
+						break;
+				}
+
+				if (cChildren.length === 2) {
+					// strong title and the ' ' space
+					// meaning only title inserted, so body was not, so just show the constant
+					cChildren.push(body);
+				}
+
  			} else {
 				if (body) {
  					cChildren.push( body );
