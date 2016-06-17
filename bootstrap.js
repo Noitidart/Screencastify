@@ -392,18 +392,16 @@ function launchOrFocusOrReuseTab(aArg, aReportProgress, aComm) {
 		var tabs = window.gBrowser.tabContainer.childNodes;
 		for (var tab of tabs) {
 			var browser = tab.linkedBrowser;
-			for (var i=0; i<reuse_criteria.length; i++) {
-				if (browser.currentURI.spec.toLowerCase() == reuse_criteria[i].toLowerCase()) {
-					window.focus();
-					window.gBrowser.selectedTab = tab;
-					focused = true;
-					return;
-				}
+			if (browser.currentURI.spec.toLowerCase() == url.toLowerCase()) {
+				window.focus();
+				window.gBrowser.selectedTab = tab;
+				focused = true;
+				return;
 			}
 		}
 	}
 
-	// if not found then search all tabs for reuse_criteria, on first find, use that tab and load this url
+	// if not found then search all tabs for reuse_criteria, on first find, use that tab and load this url (if its not already this url)
 	var reused = false;
 	if (!focused && reuse_criteria) {
 		var windows = Services.wm.getEnumerator('navigator:browser');
@@ -416,7 +414,9 @@ function launchOrFocusOrReuseTab(aArg, aReportProgress, aComm) {
 					if (browser.currentURI.spec.toLowerCase().includes(reuse_criteria[i].toLowerCase())) {
 						window.focus();
 						window.gBrowser.selectedTab = tab;
-						browser.loadURI(url);
+						if (browser.currentURI.spec.toLowerCase() != url.toLowerCase()) {
+							browser.loadURI(url);
+						}
 						reused = true;
 						return;
 					}

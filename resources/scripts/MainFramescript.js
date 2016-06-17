@@ -103,6 +103,9 @@ var progressListener = {
 			console.error('progressListener :: onStateChange, url:', url);
 
 			if (url) {
+				var window = webProgress.DOMWindow;
+				// console.log('progressListener :: onStateChange, DOMWindow:', window);
+
 				if (url.toLowerCase().startsWith('https://screencastify')) {
 					// if (aRequest instanceof Ci.nsIHttpChannel) {
 					// 	var aHttpChannel = aRequest.QueryInterface(Ci.nsIHttpChannel);
@@ -128,7 +131,6 @@ var progressListener = {
 					if (flags & Ci.nsIWebProgressListener.STATE_START) {
 						aRequest.cancel(Cr.NS_BINDING_ABORTED);
 					} else if (flags & Ci.nsIWebProgressListener.STATE_STOP) {
-						var window = webProgress.DOMWindow;
 						// console.log('progressListener :: onStateChange, DOMWindow:', window);
 						if (window) {
 							window.location.href = url.replace(/https\:\/\/screencastify\/?/, 'about:screencastify');
@@ -139,13 +141,15 @@ var progressListener = {
 					if (flags & Ci.nsIWebProgressListener.STATE_START) {
 						aRequest.cancel(Cr.NS_BINDING_ABORTED);
 					} else if (flags & Ci.nsIWebProgressListener.STATE_STOP) {
-						var window = webProgress.DOMWindow;
-						// console.log('progressListener :: onStateChange, DOMWindow:', window);
 						if (window) {
 							var authorized = !url.toLowerCase().includes('error=access_denied');
 							window.location.href = 'about:screencastify?auth/' + url.toLowerCase().match(/screencastify_([a-z]+)/)[1] + '/' + (authorized ? 'approved' : 'denied');
 							console.log('progressListener :: onStateChange, ok replaced');
 						}
+					}
+				} else if (url.toLowerCase() == 'https://api.twitter.com/oauth/authorize' && window && window.document.body.innerHTML.includes('Screencastify')) {
+					if (window) {
+						window.location.href = 'about:screencastify?auth/twitter/denied';
 					}
 				}
 			}
