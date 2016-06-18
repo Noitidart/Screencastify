@@ -133,15 +133,101 @@ function buildPathForScreencast(path, rec, unsafe_filename) {
 	return OS.Path.join( path, safedForPlatFS(unsafe_filename, {repStr:'.'}) ) + '.' + rec.mimetype.substr(rec.mimetype.indexOf('/')+1);
 }
 
+
+function buildOSFileErrorString(aMethod, aOSFileError) {
+	// aMethod:string - enum[writeAtomic]
+
+	switch (aMethod) {
+		case 'writeAtomic':
+				var explain;
+				if (OSFileError.becauseNoSuchFile) {
+					explain = formatStringFromName('osfileerror_writeatomic_nosuchfile')
+				} else {
+					explain = formatStringFromName('osfileerror_unknownreason', 'main');
+				}
+				formatStringFromName('osfileerror_' + aMethod, 'app', [explain, OSFileError.winLastError || OSFileError.unixErrno])
+			break;
+	}
+}
+
+function convertRec(rec, to, aResumeCallback, aActionFinalizer, aReportProgress) {
+	// to: mp4, gif, webm
+	// does a mimetype shouldConvert check
+
+	// aActionFinalizer in case error and this guy needs to finalize
+	// on success it calls aResumeCallback, and mimetype and arrbuf in rec will be overwritten
+
+	// start async-proc8888
+	var shouldConvert = function() {
+		if (rec.mimetype.endsWith('/' + to)) {
+			// no need to convert
+			aResumeCallback()
+		} else {
+			convert()
+		}
+	};
+
+	var convert = function() {
+		console.log('converting to:', to);
+
+		// convert it
+		aReportProgress({
+			reason_code: 'CONVERTING_WAIT-' + to
+		});
+
+		gConvWkComm.putMessage('run', {
+			arrbuf: rec.arrbuf,
+			args: gConversionArgs[to],
+			__XFER: ['arrbuf']
+		}, checkConverted);
+	};
+
+	var checkConverted = function(aConvArg, aComm) {
+		if (aConvArg.__PROGRESS) {
+			switch(aConvArg.status) {
+				case 'CONV_STARTED':
+						aReportProgress({
+							reason_code: 'CONVERTING_PROGRESS-' + to
+						});
+					break;
+				case 'CONV_STDOUT':
+						var { stdout } = aConvArg;
+						aReportProgress({
+							reason_code: 'CONVERTING_PROGRESS-' + to + '_' + stdout.substr(0, 144) + '...'
+						});
+					break;
+			}
+		} else {
+			if (aConvArg.status) {
+				rec.arrbuf = aConvArg.arrbuf;
+				aResumeCallback();
+			} else {
+				var finalize_obj = {
+					ok: false,
+					reason_code: 'CONVERTING_FAIL-' + to
+				};
+				// special and specific to gfycat
+				if (rec.serviceid == 'gfycat' || rec.serviceid == 'gfycatanon') {
+					finalize_obj.body_prefix = null; // remove the prefix
+					finalize_obj.body_suffix = formatStringFromName('newrecording_alertsuffix_neededgfycatconv', 'app');
+				}
+				aActionFinalizer(finalize_obj);
+			}
+		}
+	};
+
+	shouldConvert();
+	// end async-proc8888
+}
 ////// start - non-oauth actions
 function action_browse(rec, aActionFinalizer, aReportProgress) {
 	// action for save-browse
 
 	// start async-proc0003
-	var pass;
+	var filepath;
 	var browse = function() {
 		aReportProgress({
-			reason: 'Browse dialog opened...'
+			reason: formatStringFromName('newrecording_alerbody_browseopened', 'main')
 		});
 		var file_ext = rec.mimetype.substr(rec.mimetype.indexOf('/')+1);
 		callInBootstrap(
@@ -168,79 +254,30 @@ function action_browse(rec, aActionFinalizer, aReportProgress) {
 						reason_code: 'CANCELLED'
 					});
 				} else {
-					var {filepath, filter} = aArg;
+					var { filepath, filter } = aArg;
+					// filepath should be safed, as the browse dialog wont let in illegal characters
 					var ext = filter.substr(2); // as i start filters with a *.
 					if (!filepath.toLowerCase().endsWith('.' + filter)) {
 						filepath += '.' + ext;
 					}
-					pass = { filepath, ext }; // pass is a collection of data used in the calls in async-proc, and in each call it destructures what it uses, and ignores what it doesnt. then passes pass to the next
-					convert(); // filepath should be safed, as the browse dialog wont let in illegal characters
+					tryConvert(ext);
 				}
 			}
 		);
 	};
 
-	var convert = function() {
-		var { ext } = pass;
-
-		if (ext == 'webm') {
-			// no need to convert
-			write();
-		} else {
-			console.log('converting to ' + ext);
-
-			// convert it
-			aReportProgress({
-				reason_code: 'CONVERTING_WAIT_' + ext
-			});
-
-			gConvWkComm.putMessage('run', {
-				arrbuf: rec.arrbuf,
-				args: gConversionArgs[ext],
-				__XFER: ['arrbuf']
-			}, checkConverted)
-		}
-	};
-
-	var checkConverted = function(aConvArg, aComm) {
-		var { ext } = pass;
-
-		if (aConvArg.__PROGRESS) {
-			switch(aConvArg.status) {
-				case 'CONV_STARTED':
-						aReportProgress({
-							reason_code: 'CONVERTING_PROGRESS-' + ext
-						});
-					break;
-				case 'CONV_STDOUT':
-						var { stdout } = aConvArg;
-						aReportProgress({
-							reason_code: 'CONVERTING_PROGRESS-' + ext + '_' + stdout.substr(0, 144) + '...'
-						});
-					break;
-			}
-		} else {
-			if (aConvArg.status) {
-				pass.converted_arrbuf = aConvArg.arrbuf;
-				write();
-			} else {
-				aActionFinalizer({
-					ok: false,
-					reason_code: 'CONVERTING_FAIL-' + ext
-				});
-			}
-		}
+	var tryConvert = function(ext) {
+		shouldConvert(rec, ext, write, aActionFinalizer, aReportProgress);
 	};
 
 	var write = function() {
-		var { filepath } = pass;
 
 		aReportProgress({
 			reason: formatStringFromName('newrecording_alertbody_writing', 'app')
 		});
 
 		try {
-			OS.File.writeAtomic( filepath, new Uint8Array(pass.converted_arrbuf || rec.arrbuf), {encoding:'utf-8'} );
+			OS.File.writeAtomic( filepath, new Uint8Array(rec.arrbuf) );
 			aActionFinalizer({
 				ok: true
 			});
@@ -248,7 +285,7 @@ function action_browse(rec, aActionFinalizer, aReportProgress) {
 			console.error('OSFileError:', OSFileError);
 			aActionFinalizer({
 				ok: false,
-				reason: 'Failed saving to disk at path "' + filepath + '"'
+				reason: buildOSFileErrorString('writeAtomic', OSFileError)
 			});
 		}
 	};
@@ -262,7 +299,25 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 
 	var YourOwnRandomString = randomString(10);
 	console.log('YourOwnRandomString:', YourOwnRandomString);
+	var shouldConvert = function() {
+		if (rec.duration > 15) {
+			// gfycat allows mp4 to be max 15s, if over that then i should convert
+			aReportProgress({
+				body_prefix: formatStringFromName('newrecording_alertprefix_needgfycatconv', 'app')
+			});
+			convertRec(rec, 'gif', upload, aActionFinalizer, aReportProgress);
+		} else {
+			upload();
+		}
+	};
+
 	var upload = function() {
+		aReportProgress({
+			body_prefix: undefined, // remove the had to convert to gif prefix, in case it was there
+			reason: formatStringFromName('uploading_init', 'app')
+		});
+		return;
+
 		var blob = new Blob([new Uint8Array(rec.arrbuf)], { type:rec.mimetype });
 		var file = new File([blob], autogenScreencastFileName(rec.time));
 
@@ -276,11 +331,33 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 		data.append('Content-Type', rec.mimetype);
 		data.append('file', file);
 
+		var onuploadprogress = function(e) {
+
+			var total_size = formatBytes(rec.arrbuf.byteLength, 1);
+
+
+			var percent;
+			var uploaded_size;
+			if (e.lengthComputable) {
+				percent = Math.round((e.loaded / e.total) * 100);
+				uploaded_size = formatBytes(e.loaded, 1);
+			} else {
+				percent = '?';
+				uploaded_size = '?';
+			}
+
+			aReportProgress({
+				reason: formatStringFromName('uploading_progress', 'app', [percent, uploaded_size, total_size])
+			});
+		};
+
+
 		xhrAsync(
 			'https://gifaffe.s3.amazonaws.com/',
 			{
 				method: 'POST',
-				data
+				data,
+				onuploadprogress
 			},
 			checkUpload
 		);
@@ -301,6 +378,9 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 	};
 
 	var transcode = function() {
+		aReportProgress({
+			reason: 'Uploading transcode instruction...'
+		});
 		xhrAsync(
 			'https://upload.gfycat.com/transcodeRelease/' + YourOwnRandomString,
 			{
@@ -337,7 +417,11 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 		}
 	};
 
+	var getCnt = 0;
 	var get = function() {
+		aReportProgress({
+			reason: 'Fetching Gfycat progress... ' + (getCnt++)
+		});
 		xhrAsync(
 			'https://upload.gfycat.com/status/' + YourOwnRandomString,
 			{
@@ -399,7 +483,10 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 				case 'exploding': // 6sec
 				case 'encoding': // 90sec
 				case 'uploading': // 2sec
-						console.log('upload still in progress, will check in 5sec');
+						console.log('upload still in progress, will check in 10sec');
+						aReportProgress({
+							reason: 'Gfycat not yet done. Will check again in 10 seconds... Elapsed time:' + ((getCnt - 1) * 10) + 'sec'
+						});
 						setTimeout(get, 10000);
 					break;
 				case 'complete':
@@ -422,6 +509,9 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 	};
 
 	var info = function() {
+		aReportProgress({
+			reason: 'Gfycat ready. Fetching links...'
+		});
 		xhrAsync(
 			'https://gfycat.com/cajax/get/' + gfyname,
 			{
@@ -440,7 +530,7 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 			// response = {"gfyItem":{"gfyId":"nauticalshallowhorseshoecrab","gfyName":"NauticalShallowHorseshoecrab","gfyNumber":"348391832","userName":"anonymous","width":"1920","height":"1200","frameRate":"30","numFrames":"115","mp4Url":"https://fat.gfycat.com/NauticalShallowHorseshoecrab.mp4","webmUrl":"https://zippy.gfycat.com/NauticalShallowHorseshoecrab.webm","webpUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab.webp","mobileUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-mobile.mp4","mobilePosterUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-mobile.jpg","posterUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-poster.jpg","thumb360Url":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-360.mp4","thumb360PosterUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-thumb360.jpg","thumb100PosterUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-thumb100.jpg","max5mbGif":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-size_restricted.gif","max2mbGif":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-small.gif","mjpgUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab.mjpg","gifUrl":"https://zippy.gfycat.com/NauticalShallowHorseshoecrab.gif","gifSize":null,"mp4Size":"1543268","webmSize":"275415","createDate":"1465789154","views":1,"title":null,"extraLemmas":null,"md5":"f69894a066a91ef1fd6e02b96de2c949","tags":null,"nsfw":null,"sar":"1","url":null,"source":"1","dynamo":null,"subreddit":null,"redditId":null,"redditIdText":null,"likes":null,"dislikes":null,"published":null,"description":null,"copyrightClaimaint":null,"languageText":null}}
 			if (response.gfyItem) {
 				console.log('JSON.stringify(response):', JSON.stringify(response))
-				var { userName, mp4Url, webmUrl, gifUrl } = response.gfyItem;
+				// var { userName, mp4Url, webmUrl, gifUrl } = response.gfyItem;
 				// gifUrl= gifUrl.replace('zippy.gfycat', 'giant.gfycat'); // otehrwise get access denied error
 
 				var log = {
@@ -450,11 +540,14 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 
 				aActionFinalizer({
 					ok: true,
-					gfyUrl: 'https://gfycat.com/' + gfyname,
-					userName,
-					mp4Url,
-					webmUrl,
-					gifUrl // CURRENTLY DOES NOT WORK - i posted about it here -https://www.reddit.com/r/gfycat/comments/4ntxlo/gfycat_api_question_nonanonymous_delete_url/
+					reason_code: 'UPLOAD_SUCCESS_RESULTS-' + JSON.stringify({
+						link_gfycat: 'https://gfycat.com/' + gfyname,
+						// userName, // is "anonymous"
+						link_webm: response.gfyItem.webmUrl,
+						link_mp4:  response.gfyItem.mp4Url,
+						link_gif: response.gfyItem.gifUrl.replace('zippy.', 'giant.'),
+						link_gifsmall: response.gfyItem.gifUrl
+					})
 				});
 			} else {
 				aActionFinalizer({
@@ -470,7 +563,7 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 		}
 	};
 
-	upload();
+	shouldConvert();
 	// end async-proc938
 }
 
@@ -493,7 +586,7 @@ function action_quick(rec, aActionFinalizer, aReportProgress) {
 			reason: formatStringFromName('newrecording_alertbody_writing', 'app')
 		});
 		try {
-			OS.File.writeAtomic( buildPathForScreencast(path, rec), new Uint8Array(rec.arrbuf), {encoding:'utf-8'} );
+			OS.File.writeAtomic( buildPathForScreencast(path, rec), new Uint8Array(rec.arrbuf) );
 			aActionFinalizer({
 				ok: true
 			});
@@ -501,7 +594,7 @@ function action_quick(rec, aActionFinalizer, aReportProgress) {
 			console.error('OSFileError:', OSFileError);
 			aActionFinalizer({
 				ok: false,
-				reason: 'Failed saving to disk at path "' + buildPathForScreencast(path, rec) + '"'
+				reason: buildOSFileErrorString('writeAtomic', OSFileError)
 			});
 		}
 	};
@@ -522,12 +615,13 @@ function bootstrapTimeout(milliseconds) {
 }
 
 function processAction(aArg, aReportProgress, aComm) {
-	var { actionid, serviceid, arrbuf, time, mimetype, action_options } = aArg;
+	var { actionid, serviceid, duration, arrbuf, time, mimetype, action_options } = aArg;
 
 	var deferredMain_processAction = new Deferred();
 
 	console.log('worker - processAction - aArg:', aArg);
-	var rec = { actionid, arrbuf, time, mimetype, action_options };
+	var rec = { actionid, duration, arrbuf, time, mimetype, action_options };
+	// time - is time it was taken, i use that as videoid
 
 	gWorker['action_' + serviceid](rec, function(status) {
 		console.log('worker - processAction complete, status:', status);

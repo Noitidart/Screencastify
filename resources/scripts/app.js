@@ -9,6 +9,9 @@ var gURL;
 
 function getPage() {
 	var href = location.href;
+	if (href.includes('#')) {
+		href = href.substr(0, href.indexOf('#'));
+	}
 
 
 	var match = href.match(/about\:(\w+)\??(\w+)?.?(.+)?/);
@@ -156,7 +159,7 @@ switch (gPage.name) {
 
 			function addAlert(alertid, obj) {
 				// obj can contain a mix of these keys
-					// acceptable keys: { body, color, dismissible, glyph, title }
+					// acceptable keys: { body, body_prefix, body_suffix, color, dismissible, glyph, title }
 
 				return {
 					type: ADD_ALERT,
@@ -166,6 +169,7 @@ switch (gPage.name) {
 			}
 
 			function updateAlert(alertid, obj) {
+				// see addAlert for acceptable keys to obj
 				return {
 					type: UPDATE_ALERT,
 					alertid,
@@ -420,9 +424,7 @@ var NewRecordingPage = React.createClass({
 				break;
 		}
 		var l = controls.length;
-		for (var i=l-1; i>0; i--) {
-			controls.splice(i, 0, ' ');
-		}
+		pushAlternatingRepeating(controls, ' ');
 		console.log('controls:', controls);
 
 		var mainClassName = '';
@@ -671,6 +673,7 @@ function processAction(aArg) {
 		aArg.arrbuf = this.result;
 		aArg.mimetype = gBlob.type;
 		aArg.time = gTime;
+		aArg.duration = document.getElementById('video').duration; // seconds
 		aArg.__XFER = ['arrbuf'];
 		aArg.actionid = Date.now(); // is action_time
 
@@ -692,6 +695,14 @@ function processAction(aArg) {
 				// set body
 				updateAlertDict.body = status.reason_code || status.reason || 'Progress for unknown reason';
 
+				// if prefix/suffix is set then include it, if i include it to undefined, it will remove an existing prefix/suffix
+				if ('body_prefix' in status) {
+					updateAlertDict.body_prefix =  status.body_prefix;
+				}
+				if ('body_suffix' in status) {
+					updateAlertDict.body_suffix =  status.body_suffix;
+				}
+
 				store.dispatch(updateAlert(aArg.actionid, updateAlertDict)); // NOTE: alertid is the actionid in my use case in Screencastify link5757
 			} else {
 				var updateAlertDict = { dismissible:true };
@@ -708,6 +719,14 @@ function processAction(aArg) {
 
 				// set body
 				updateAlertDict.body = status.reason_code || status.reason || ( status.ok ? 'Success for unknown reason' : 'Failed for unknown reason' );
+
+				// if prefix/suffix is set then include it, if i include it to undefined, it will remove an existing prefix/suffix
+				if ('body_prefix' in status) {
+					updateAlertDict.body_prefix =  status.body_prefix;
+				}
+				if ('body_suffix' in status) {
+					updateAlertDict.body_suffix =  status.body_suffix;
+				}
 
 				store.dispatch(updateAlert(aArg.actionid, updateAlertDict)) // NOTE: alertid is the actionid in my use case in Screencastify link5757
 			}
@@ -747,8 +766,18 @@ var BootstrapAlert = React.createClass({
 	openAuthTabClick: function() {
 		callInWorker('openAuthTab', this.props.title);
 	},
+	copyClick: function(e) {
+		var data_copy = e.target.getAttribute('data-copy');
+		callInBootstrap('copyText', data_copy);
+		e.preventDefault(); // so it doesnt jump to hash
+	},
+	launchClick: function(e) {
+		var data_launch = e.target.getAttribute('data-launch');
+		callInBootstrap('launchUrl', data_launch);
+		e.preventDefault(); // so it doesnt jump to hash
+	},
 	render: function() {
-		var { alertid, glyph, dismiss_dispatcher, color='info', children, title, body } = this.props;
+		var { alertid, glyph, dismiss_dispatcher, color='info', children, title, body, body_prefix, body_suffix } = this.props;
 
 		var cChildren;
  		if (children) {
@@ -760,7 +789,6 @@ var BootstrapAlert = React.createClass({
 				if (core.addon.id == 'Screencastify@jetpack') {
 					// special for Screencastify
 					cChildren.push( React.createElement('strong', undefined, formatStringFromNameCore('newrecording_title_' + title, 'app')) );
-					cChildren.push(' ');
 				} else {
 					// normal - non Screencastify specific
 					cChildren.push(React.createElement('strong', undefined, title));
@@ -806,28 +834,45 @@ var BootstrapAlert = React.createClass({
 							// HOLD_NEEDS_USER_AUTH-serviceid
 							var servicename = formatStringFromNameCore('newrecording_' + body_rest, 'app');
 							cChildren.push( formatStringFromNameCore('newrecording_alertbody_userauth', 'app', [servicename]) );
-							cChildren.push( ' ' );
 							cChildren.push( React.createElement( 'a', { href:'javascript:void(0)', className:'alert-link', onClick:this.openAuthTabClick }, formatStringFromNameCore('newrecording_alertbody_openauth', 'app') ) )
 
 						break;
 					case 'CANCELLED':
 							cChildren.push( formatStringFromNameCore('cancelled', 'app') );
 						break;
+					case 'UPLOAD_SUCCESS_RESULTS':
+							cChildren.push( formatStringFromNameCore('upload_success', 'app') );
+
+							var links_json = JSON.parse(body_rest);
+							cChildren.push( React.createElement('br') );
+							cChildren.push( React.createElement('br') );
+
+							var linkChildren = [];
+							for (var p in links_json) {
+								cChildren.push( formatStringFromNameCore('newrecording_alert' + p, 'app') );
+								cChildren.push( '-' );
+								cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.launchClick, 'data-launch':links_json[p] }, formatStringFromNameCore('newrecording_alertlink_opentab', 'app') ) );
+								cChildren.push( '-' );
+								cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.copyClick, 'data-copy':links_json[p] }, formatStringFromNameCore('newrecording_alertlink_copylink', 'app') ) );
+								cChildren.push( React.createElement('br') );
+							}
+
+						break;
 				}
 
 				// title specific body
 				switch (title) {
-					case 'twitter':
+					case 'gfycatanon':
+					case 'gfycat':
 							switch (body_case) {
-								// case 'HOLD_NEEDS_USER_AUTH':
+								// case 'UPLOAD_SUCCESS_RESULTS':
 								//
 								// 	break;
 							}
 						break;
 				}
 
-				if (cChildren.length === 2) {
-					// strong title and the ' ' space
+				if (cChildren.length === 1) {
 					// meaning only title inserted, so body was not, so just show the constant
 					cChildren.push(body);
 				}
@@ -837,6 +882,21 @@ var BootstrapAlert = React.createClass({
  					cChildren.push( body );
 				}
  			}
+
+			// add in body_prefix / body_suffix if there is one
+			if (body_prefix) {
+				if (title) {
+					cChildren.splice( 1, 0, body_prefix ); // acount for `<strong>` title
+				} else {
+					cChildren.splice( 0, 0, body_prefix );
+				}
+			}
+			if (body_suffix) {
+				cChildren.push( body_suffix );
+			}
+
+			// put a space between all things
+			pushAlternatingRepeating(cChildren, ' ');
  		}
 
 	 	return React.createElement('div', { className: 'alert alert-' + color + (dismiss_dispatcher ? ' alert-dismissible' : ''), role: 'alert' },
@@ -1429,16 +1489,23 @@ function doTestCallWorker_cbAndFullXfer() {
 	console.log('arg.bufA:', arg.bufA);
 }
 // start - common helper functions
-
+function pushAlternatingRepeating(aTargetArr, aEntry) {
+	// pushes into an array aEntry, every alternating
+		// so if aEntry 0
+			// [1, 2] becomes [1, 0, 2]
+			// [1] statys [1]
+			// [1, 2, 3] becomes [1, 0, 2, 0, 3]
+	var l = aTargetArr.length;
+	for (var i=l-1; i>0; i--) {
+		aTargetArr.splice(i, 0, aEntry);
+	}
+}
 function formatStringFromNameCore(aLocalizableStr, aLoalizedKeyInCoreAddonL10n, aReplacements) {
 	// 051916 update - made it core.addon.l10n based
     // formatStringFromNameCore is formating only version of the worker version of formatStringFromName, it is based on core.addon.l10n cache
 
-	try {
-		var cLocalizedStr = core.addon.l10n[aLoalizedKeyInCoreAddonL10n][aLocalizableStr];
-	} catch (ex) {
-		console.error('formatStringFromNameCore error:', ex, 'args:', aLocalizableStr, aLoalizedKeyInCoreAddonL10n, aReplacements);
-	}
+	try { var cLocalizedStr = core.addon.l10n[aLoalizedKeyInCoreAddonL10n][aLocalizableStr]; } catch (ex) { console.error('formatStringFromNameCore error:', ex, 'args:', aLocalizableStr, aLoalizedKeyInCoreAddonL10n, aReplacements); } // remove on production
+
 	var cLocalizedStr = core.addon.l10n[aLoalizedKeyInCoreAddonL10n][aLocalizableStr];
 	// console.log('cLocalizedStr:', cLocalizedStr, 'args:', aLocalizableStr, aLoalizedKeyInCoreAddonL10n, aReplacements);
     if (aReplacements) {

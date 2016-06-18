@@ -363,7 +363,7 @@ function init() {
 		switch (pageLoader.matches(href_lower, content.window.location)) {
 			case MATCH_APP:
 					// for about pages, need to reload it, as it it loaded before i registered it
-					content.window.location.href = content.window.location.href.replace(/https\:\/\/screencastify\/?/i, 'about:screencastify'); // cannot use .reload() as the webNav.document.documentURI is now https://screencastify/
+					content.window.location.reload(); //href = content.window.location.href.replace(/https\:\/\/screencastify\/?/i, 'about:screencastify'); // cannot use .reload() as the webNav.document.documentURI is now https://screencastify/
 				break;
 			// case MATCH_TWITTER:
 			// 		// for non-about pages, i dont reload, i just initiate the ready of pageLoader

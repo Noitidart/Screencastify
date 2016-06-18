@@ -3,6 +3,10 @@ const {interfaces: Ci, utils: Cu, classes:Cc} = Components;
 Cu.import('resource://gre/modules/Services.jsm');
 Cu.import('resource:///modules/CustomizableUI.jsm');
 
+const COMMONJS_URI = 'resource://gre/modules/commonjs';
+const { require } = Cu.import(COMMONJS_URI + '/toolkit/require.js', {});
+var CLIPBOARD = require('sdk/clipboard');
+
 // Globals
 var core = {
 	addon: {
@@ -364,6 +368,13 @@ function closeSelfTab(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
 			break;
 		}
 	}
+}
+function copyText(aText) {
+	CLIPBOARD.set(aText, 'text');
+}
+function launchUrl(aURL) {
+	var window = Services.wm.getMostRecentWindow('navigator:browser');
+	window.gBrowser.loadOneTab(aURL, { inBackground:false });
 }
 // end - functions called by framescript
 
