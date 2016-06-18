@@ -23,6 +23,7 @@ body {
     font-family: fontello;
     position: relative;
     top: -2px;
+    margin: 0 2px 0 2px;
 }
 .glyphicon-tttttt::before {
     /* twitter - used tttttt so adblockers dont block */
@@ -37,6 +38,7 @@ body {
     font-family: fontello;
     position: relative;
     top: -2px;
+    margin: 0 4px 0 3.5px;
 }
 .glyphicon-youtube::before {
     content: '\e801';
@@ -204,7 +206,7 @@ button {
     outline: 0;
 }
 
-#NewRecordingPage #messages .alert {
+#NewRecordingPage #alerts .alert {
     margin-top: -10px;
 }
 

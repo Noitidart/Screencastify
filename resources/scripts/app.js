@@ -154,29 +154,29 @@ switch (gPage.name) {
 				}
 			}
 
-			function addAlert(id, obj) {
+			function addAlert(alertid, obj) {
 				// obj can contain a mix of these keys
 					// acceptable keys: { body, color, dismissible, glyph, title }
 
 				return {
 					type: ADD_ALERT,
-					id,
+					alertid,
 					obj
 				}
 			}
 
-			function updateAlert(id, obj) {
+			function updateAlert(alertid, obj) {
 				return {
 					type: UPDATE_ALERT,
-					id,
+					alertid,
 					obj
 				}
 			}
 
-			function removeAlert(id) {
+			function removeAlert(alertid) {
 				return {
 					type: REMOVE_ALERT,
-					id
+					alertid
 				}
 			}
 
@@ -214,7 +214,7 @@ switch (gPage.name) {
 				},
 				recording: enum[RECSTATE_UNINIT, RECSTATE_WAITING_USER, RECSTATE_RECORDING, RECSTATE_STOPPED, RECSTATE_PAUSED],
 				activeactions: {group:serviceid} // for valid group and serviceid see my rendering of NewRecordingPage, thats where this is decided, in each BootstrapSplitButtonDropdown
-				messages: [{ id:Date.now, color:string, title:string, body:string, dismissible:boolean }] // id should be time
+				alerts: [{ alertid:Date.now, color:string, title:string, body:string, dismissible:boolean }] // alertid should be time
 				dialog: null
 			};
 			*/
@@ -261,17 +261,17 @@ switch (gPage.name) {
 				}
 			}
 
-			function messages(state=[], action) {
+			function alerts(state=[], action) {
 				switch (action.type) {
 					case REMOVE_ALERT:
-						return state.filter( msg => msg.id !== action.id );
+						return state.filter( alert => alert.alertid !== action.alertid );
 					case ADD_ALERT:
 						return [
 							...state,
-							Object.assign(action.obj, { id:action.id })
+							Object.assign(action.obj, { alertid:action.alertid })
 						];
 					case UPDATE_ALERT:
-						return state.map( msg => msg.id === action.id ? Object.assign({}, msg, action.obj) : msg );
+						return state.map( alert => alert.alertid === action.alertid ? Object.assign({}, alert, action.obj) : alert );
 					default:
 						return state;
 				}
@@ -295,7 +295,7 @@ switch (gPage.name) {
 				options,
 				recording,
 				activeactions,
-				messages,
+				alerts,
 				dialog
 			};
 
@@ -377,7 +377,7 @@ var NewRecordingPage = React.createClass({
 	},
 	render() {
 		var { param } = this.props; // passed from parent component
-		var { mic, systemaudio, webcam, fps, systemvideo, recording, activeactions, messages, dialog } = this.props; // passed from mapStateToProps
+		var { mic, systemaudio, webcam, fps, systemvideo, recording, activeactions, alerts, dialog } = this.props; // passed from mapStateToProps
 		var { toggleMic, toggleSystemaudio, toggleWebcam, setFps, setSystemvideoWindow, setSystemvideoMonitor, setSystemvideoApplication, updateRecStateUser, updateRecStateStop, updateRecStatePause, updateRecStateRecording, updateRecStateUninit, chgActionSaveQuick, chgActionSaveBrowse, chgActionUploadGfycatAnon, chgActionUploadGfycat, chgActionUploadYoutube, chgActionShareFacebook, chgActionShareTwitter } = this.props; // passed from mapDispatchToProps // removed `chgActionUploadImgurAnon, chgActionUploadImgur` as i deprecated imgur
 		// console.log('NewRecordingPage props:', this.props);
 		// console.log('activations in newrecordingpage:', activeactions);
@@ -441,9 +441,9 @@ var NewRecordingPage = React.createClass({
 					formatStringFromNameCore('newrecording_header', 'app')
 				)
 			),
-			React.createElement('div', { id:'messages' },
-				!messages ? undefined : messages.map(msg =>
-					React.createElement(BootstrapAlert, Object.assign({}, msg, { dismiss_dispatcher: msg.dismissible ? this.dismiss_dispatcher : undefined }))
+			React.createElement('div', { id:'alerts' },
+				!alerts ? undefined : alerts.map(alert =>
+					React.createElement(BootstrapAlert, Object.assign({}, alert, { dismiss_dispatcher: alert.dismissible ? this.dismiss_dispatcher : undefined }))
 				)
 			),
 			React.createElement('div', { id:'controls' },
@@ -632,9 +632,10 @@ var NewRecordingPage = React.createClass({
 	},
 	// end - action handlers
 	// alert box handler
-	dismiss_dispatcher: function(id) {
+	dismiss_dispatcher: function(alertid) {
 		var { removeAlert } = this.props;
-		removeAlert(id);
+		removeAlert(alertid);
+		callInWorker('cancelActionFlow', alertid); // NOTE: alertid is the actionid in my use case in Screencastify link5757
 	},
 	// dialog onClicks
 	twitterGif: function() {
@@ -671,7 +672,7 @@ function processAction(aArg) {
 		aArg.mimetype = gBlob.type;
 		aArg.time = gTime;
 		aArg.__XFER = ['arrbuf'];
-		aArg.id = Date.now(); // action_id which is action_tim
+		aArg.actionid = Date.now(); // is action_time
 
 		callInWorker('processAction', aArg, function(status, aComm) {
 			console.log('back in window after calling processAction, resulting status:', status);
@@ -685,16 +686,22 @@ function processAction(aArg) {
 				// set glyph
 				updateAlertDict.glyph = status.reason_code && status.reason_code.startsWith('HOLD_') ? 'exclamation-sign' : 'info-sign';
 
+				// set dismissible
+				updateAlertDict.dismissible = status.reason_code && status.reason_code.startsWith('HOLD_') ? true : false;
+
 				// set body
 				updateAlertDict.body = status.reason_code || status.reason || 'Progress for unknown reason';
 
-				store.dispatch(updateAlert(aArg.id, updateAlertDict));
+				store.dispatch(updateAlert(aArg.actionid, updateAlertDict)); // NOTE: alertid is the actionid in my use case in Screencastify link5757
 			} else {
 				var updateAlertDict = { dismissible:true };
 				// color is either success or danger
 
 				// set color
 				updateAlertDict.color = status.ok ? 'success' : 'danger';
+				if (status.reason_code == 'CANCELLED') {
+					updateAlertDict.color = 'warning';
+				}
 
 				// set glyph
 				updateAlertDict.glyph = status.ok ? 'ok-sign' : 'remove-sign';
@@ -702,11 +709,11 @@ function processAction(aArg) {
 				// set body
 				updateAlertDict.body = status.reason_code || status.reason || ( status.ok ? 'Success for unknown reason' : 'Failed for unknown reason' );
 
-				store.dispatch(updateAlert(aArg.id, updateAlertDict))
+				store.dispatch(updateAlert(aArg.actionid, updateAlertDict)) // NOTE: alertid is the actionid in my use case in Screencastify link5757
 			}
 		});
 
-		store.dispatch(addAlert(aArg.id, {
+		store.dispatch(addAlert(aArg.actionid, { // NOTE: alertid is the actionid in my use case in Screencastify link5757
 			title: aArg.serviceid,
 			body: formatStringFromNameCore('newrecording_alertbody_init', 'app'),
 			glyph: 'info-sign'
@@ -735,13 +742,13 @@ var ManageRecordingPage = React.createClass({
 
 var BootstrapAlert = React.createClass({
 	dismissClick: function() {
-		this.props.dismiss_dispatcher(this.props.id);
+		this.props.dismiss_dispatcher(this.props.alertid);
 	},
 	openAuthTabClick: function() {
 		callInWorker('openAuthTab', this.props.title);
 	},
 	render: function() {
-		var { id, glyph, dismiss_dispatcher, color='info', children, title, body } = this.props;
+		var { alertid, glyph, dismiss_dispatcher, color='info', children, title, body } = this.props;
 
 		var cChildren;
  		if (children) {
@@ -762,7 +769,7 @@ var BootstrapAlert = React.createClass({
 			}
 
 			// setup body
-			var body_case = /^[A-Z]+_+[A-Z_]+/m.exec(body);
+			var body_case = /^[A-Z_]+(?=$|-)/m.exec(body);
 			console.log('body_case exec:', body_case);
  			if (core.addon.id == 'Screencastify@jetpack' && body_case) {
  				// create special for Screencastify
@@ -801,6 +808,9 @@ var BootstrapAlert = React.createClass({
 							cChildren.push( ' ' );
 							cChildren.push( React.createElement( 'a', { href:'javascript:void(0)', className:'alert-link', onClick:this.openAuthTabClick }, formatStringFromNameCore('newrecording_alertbody_openauth', 'app') ) )
 
+						break;
+					case 'CANCELLED':
+							cChildren.push( formatStringFromNameCore('cancelled', 'app') );
 						break;
 				}
 
@@ -1291,9 +1301,9 @@ var NewRecordingMemo = {
 	chgActionShareFacebook: () => store.dispatch(changeActiveAction('share', 'facebook')),
 	chgActionShareTwitter: () => store.dispatch(changeActiveAction('share', 'twitter')),
 	//
-	removeAlert: id => store.dispatch(removeAlert(id)),
-	addAlert: (id, color, title, body) => store.dispatch(addAlert(id, color, title, body)),
-	updateAlert: (id, obj) => store.dispatch(updateAlert(id, obj))
+	removeAlert: alertid => store.dispatch(removeAlert(alertid)),
+	addAlert: (alertid, color, title, body) => store.dispatch(addAlert(alertid, color, title, body)),
+	updateAlert: (alertid, obj) => store.dispatch(updateAlert(alertid, obj))
 };
 var NewRecordingContainer = ReactRedux.connect(
 	function mapStateToProps(state, ownProps) {
@@ -1305,7 +1315,7 @@ var NewRecordingContainer = ReactRedux.connect(
 			systemvideo: state.params.systemvideo,
 			recording: state.recording,
 			activeactions: state.activeactions,
-			messages: state.messages,
+			alerts: state.alerts,
 			dialog: state.dialog
 		}
 	},

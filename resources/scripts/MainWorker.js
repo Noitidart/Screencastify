@@ -71,16 +71,16 @@ self.onclose = function() {
 	console.log('ok ready to terminate');
 }
 
-var gDataStore = {}; // key is recording id
+var gDataStore = {}; // key is recording actionid
 var gDataStoreNextId = 0;
 function createStore() {
-	var id = gDataStoreNextId++;
-	gDataStore[id] = {};
-	return id;
+	var storeid = gDataStoreNextId++;
+	gDataStore[storeid] = {};
+	return storeid;
 }
-function getStore(id) {
+function getStore(storeid) {
 	// returns the btn store from gBtnStore, if it doesnt exist, it creates one
-	return gDataStore[id];
+	return gDataStore[storeid];
 }
 
 ////// start - specific helper functions
@@ -134,7 +134,7 @@ function buildPathForScreencast(path, rec, unsafe_filename) {
 }
 
 ////// start - non-oauth actions
-function action_browse(rec, aCallback, aReportProgress) {
+function action_browse(rec, aActionFinalizer, aReportProgress) {
 	// action for save-browse
 
 	// start async-proc0003
@@ -163,9 +163,9 @@ function action_browse(rec, aCallback, aReportProgress) {
 			},
 			function(aArg, aComm) {
 				if (!aArg) {
-					aCallback({
+					aActionFinalizer({
 						status: false,
-						reason: 'Cancelled'
+						reason_code: 'CANCELLED'
 					});
 				} else {
 					var {filepath, filter} = aArg;
@@ -224,7 +224,7 @@ function action_browse(rec, aCallback, aReportProgress) {
 				pass.converted_arrbuf = aConvArg.arrbuf;
 				write();
 			} else {
-				aCallback({
+				aActionFinalizer({
 					ok: false,
 					reason_code: 'CONVERTING_FAIL-' + ext
 				});
@@ -241,12 +241,12 @@ function action_browse(rec, aCallback, aReportProgress) {
 
 		try {
 			OS.File.writeAtomic( filepath, new Uint8Array(pass.converted_arrbuf || rec.arrbuf), {encoding:'utf-8'} );
-			aCallback({
+			aActionFinalizer({
 				ok: true
 			});
 		} catch (OSFileError) {
 			console.error('OSFileError:', OSFileError);
-			aCallback({
+			aActionFinalizer({
 				ok: false,
 				reason: 'Failed saving to disk at path "' + filepath + '"'
 			});
@@ -257,7 +257,7 @@ function action_browse(rec, aCallback, aReportProgress) {
 	// end async-proc0003
 }
 
-function action_gfycatanon(rec, aCallback, aReportProgress) {
+function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 	// start async-proc938
 
 	var YourOwnRandomString = randomString(10);
@@ -293,7 +293,7 @@ function action_gfycatanon(rec, aCallback, aReportProgress) {
 		if (xhrArg.ok) {
 			transcode();
 		} else {
-			aCallback({
+			aActionFinalizer({
 				ok: false,
 				reason: 'gfycatanon server /upload/ failed. ' + xhrArg.reason
 			});
@@ -324,13 +324,13 @@ function action_gfycatanon(rec, aCallback, aReportProgress) {
 						get();
 					break;
 				default:
-					aCallback({
+					aActionFinalizer({
 						ok: false,
 						reason: 'gfycatanon server /transcodeRelease/ unknown response:' + JSON.stringify(response)
 					});
 			}
 		} else {
-			aCallback({
+			aActionFinalizer({
 				ok: false,
 				reason: 'gfycatanon server /transcodeRelease/ failed. ' + xhrArg.reason
 			});
@@ -408,13 +408,13 @@ function action_gfycatanon(rec, aCallback, aReportProgress) {
 						info();
 					break;
 				default:
-					aCallback({
+					aActionFinalizer({
 						ok: false,
 						reason: 'gfycatanon server /status/ unknown response:' + JSON.stringify(response)
 					});
 			}
 		} else {
-			aCallback({
+			aActionFinalizer({
 				ok: false,
 				reason: 'gfycatanon server /status/ failed. ' + xhrArg.reason
 			});
@@ -448,7 +448,7 @@ function action_gfycatanon(rec, aCallback, aReportProgress) {
 					x: undefined
 				};
 
-				aCallback({
+				aActionFinalizer({
 					ok: true,
 					gfyUrl: 'https://gfycat.com/' + gfyname,
 					userName,
@@ -457,13 +457,13 @@ function action_gfycatanon(rec, aCallback, aReportProgress) {
 					gifUrl // CURRENTLY DOES NOT WORK - i posted about it here -https://www.reddit.com/r/gfycat/comments/4ntxlo/gfycat_api_question_nonanonymous_delete_url/
 				});
 			} else {
-				aCallback({
+				aActionFinalizer({
 					ok: false,
 					reason: 'gfycatanon server /get/ unknown response:' + JSON.stringify(response)
 				});
 			}
 		} else {
-			aCallback({
+			aActionFinalizer({
 				ok: false,
 				reason: 'gfycatanon server /get/ failed. ' + xhrArg.reason
 			});
@@ -474,7 +474,7 @@ function action_gfycatanon(rec, aCallback, aReportProgress) {
 	// end async-proc938
 }
 
-function action_quick(rec, aCallback, aReportProgress) {
+function action_quick(rec, aActionFinalizer, aReportProgress) {
 	// action for save-quick
 	console.log('worker - action_quick');
 
@@ -494,12 +494,12 @@ function action_quick(rec, aCallback, aReportProgress) {
 		});
 		try {
 			OS.File.writeAtomic( buildPathForScreencast(path, rec), new Uint8Array(rec.arrbuf), {encoding:'utf-8'} );
-			aCallback({
+			aActionFinalizer({
 				ok: true
 			});
 		} catch (OSFileError) {
 			console.error('OSFileError:', OSFileError);
-			aCallback({
+			aActionFinalizer({
 				ok: false,
 				reason: 'Failed saving to disk at path "' + buildPathForScreencast(path, rec) + '"'
 			});
@@ -522,12 +522,12 @@ function bootstrapTimeout(milliseconds) {
 }
 
 function processAction(aArg, aReportProgress, aComm) {
-	var { serviceid, arrbuf, time, mimetype, action_options } = aArg;
+	var { actionid, serviceid, arrbuf, time, mimetype, action_options } = aArg;
 
 	var deferredMain_processAction = new Deferred();
 
 	console.log('worker - processAction - aArg:', aArg);
-	var rec = { arrbuf, time, mimetype, action_options };
+	var rec = { actionid, arrbuf, time, mimetype, action_options };
 
 	gWorker['action_' + serviceid](rec, function(status) {
 		console.log('worker - processAction complete, status:', status);

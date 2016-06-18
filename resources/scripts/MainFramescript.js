@@ -143,7 +143,14 @@ var progressListener = {
 					} else if (flags & Ci.nsIWebProgressListener.STATE_STOP) {
 						if (window) {
 							var authorized = !url.toLowerCase().includes('error=access_denied');
-							window.location.href = 'about:screencastify?auth/' + url.toLowerCase().match(/screencastify_([a-z]+)/)[1] + '/' + (authorized ? 'approved' : 'denied');
+							var serviceid = url.toLowerCase().match(/screencastify_([a-z]+)/)[1];
+							if (authorized) {
+								callInWorker('oauthAuthorized', {
+									serviceid,
+									href: url
+								})
+							}
+							window.location.href = 'about:screencastify?auth/' + serviceid + '/' + (authorized ? 'approved' : 'denied');
 							console.log('progressListener :: onStateChange, ok replaced');
 						}
 					}
