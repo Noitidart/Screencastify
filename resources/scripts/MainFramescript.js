@@ -103,10 +103,11 @@ var progressListener = {
 			console.error('progressListener :: onStateChange, url:', url);
 
 			if (url) {
+				var url_lower = url.toLowerCase();
 				var window = webProgress.DOMWindow;
 				// console.log('progressListener :: onStateChange, DOMWindow:', window);
 
-				if (url.toLowerCase().startsWith('https://screencastify')) {
+				if (url_lower.startsWith('https://screencastify')) {
 					// if (aRequest instanceof Ci.nsIHttpChannel) {
 					// 	var aHttpChannel = aRequest.QueryInterface(Ci.nsIHttpChannel);
 					// 	console.error('progressListener :: onStateChange, aHttpChannel:', aHttpChannel);
@@ -137,13 +138,14 @@ var progressListener = {
 							console.log('progressListener :: onStateChange, ok replaced');
 						}
 					}
-				} else if (url.toLowerCase().startsWith('http://127.0.0.1/screencastify')) {
+				} else if (url_lower.startsWith('http://127.0.0.1/screencastify')) {
 					if (flags & Ci.nsIWebProgressListener.STATE_START) {
 						aRequest.cancel(Cr.NS_BINDING_ABORTED);
 					} else if (flags & Ci.nsIWebProgressListener.STATE_STOP) {
 						if (window) {
-							var authorized = !url.toLowerCase().includes('error=access_denied');
-							var serviceid = url.toLowerCase().match(/screencastify_([a-z]+)/)[1];
+							var access_denied = url_lower.includes('error=access_denied') || url_lower.includes('denied='); // `denied=` is for twitter, `error=access_denied` is for everything else
+							var authorized = !access_denied;
+							var serviceid = url_lower.match(/screencastify_([a-z]+)/)[1];
 							if (authorized) {
 								callInWorker('oauthAuthorized', {
 									serviceid,
@@ -154,14 +156,9 @@ var progressListener = {
 							console.log('progressListener :: onStateChange, ok replaced');
 						}
 					}
-				} else if (url.toLowerCase() == 'https://api.twitter.com/oauth/authorize' && window && window.document.body.innerHTML.includes('Screencastify')) {
-					if (flags & Ci.nsIWebProgressListener.STATE_START) {
-						aRequest.cancel(Cr.NS_BINDING_ABORTED);
-					} else if (flags & Ci.nsIWebProgressListener.STATE_STOP) {
-						if (window) {
-							window.location.href = 'about:screencastify?auth/twitter/denied';
-						}
-					}
+				} else if (url_lower == 'https://api.twitter.com/oauth/authorize' && (flags & Ci.nsIWebProgressListener.STATE_STOP) && window && window.document.documentElement.innerHTML.includes('screencastify_twitter?denied=')) {
+					// console.log('twitter auth innerHTML:', window.document.body.innerHTML);
+					window.location.href = 'about:screencastify?auth/twitter/denied';
 				}
 			}
 		},

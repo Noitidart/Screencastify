@@ -796,8 +796,9 @@ var BootstrapAlert = React.createClass({
 						break;
 					case 'CONVERTING_PROGRESS':
 							// CONVERTING_PROGRESS-gif_progress string here
-							var body_rest_pt1 = body_rest.substr( 0, body_rest.indexOf('_')-1 );
-							var body_rest_pt2 = body_rest.substr( 0, body_rest.indexOf('_')+1 );
+							var body_rest_pt1 = body_rest.substr( 0, body_rest.indexOf('_') );
+							var body_rest_pt2 = body_rest.substr( body_rest.indexOf('_')+1 );
+							// console.log('body_rest_pt1:', body_rest_pt1, 'body_rest_pt2:', body_rest_pt2);
 
 							cChildren.push( formatStringFromNameCore('newrecording_alertbody_convprog' + body_rest_pt1, 'app', [body_rest_pt2]) );
 						break;
