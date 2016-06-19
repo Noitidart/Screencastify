@@ -219,6 +219,28 @@ function convertRec(rec, to, aResumeCallback, aActionFinalizer, aReportProgress)
 	shouldConvert();
 	// end async-proc8888
 }
+
+function genericOnUploadProgress(rec, aReportProgress, e) {
+
+	var total_size = formatBytes(rec.arrbuf.byteLength, 1);
+
+
+	var percent;
+	var uploaded_size;
+	if (e.lengthComputable) {
+		percent = Math.round((e.loaded / e.total) * 100);
+		uploaded_size = formatBytes(e.loaded, 1);
+	} else {
+		percent = '?';
+		uploaded_size = '?';
+	}
+
+	aReportProgress({
+		reason: formatStringFromName('uploading_progress', 'app', [percent, uploaded_size, total_size])
+	});
+};
+
+
 ////// start - non-oauth actions
 function action_browse(rec, aActionFinalizer, aReportProgress) {
 	// action for save-browse
@@ -227,7 +249,7 @@ function action_browse(rec, aActionFinalizer, aReportProgress) {
 	var filepath;
 	var browse = function() {
 		aReportProgress({
-			reason: formatStringFromName('newrecording_alerbody_browseopened', 'main')
+			reason: formatStringFromName('newrecording_alertbody_browseopened', 'app')
 		});
 		var file_ext = rec.mimetype.substr(rec.mimetype.indexOf('/')+1);
 		callInBootstrap(
@@ -267,7 +289,7 @@ function action_browse(rec, aActionFinalizer, aReportProgress) {
 	};
 
 	var tryConvert = function(ext) {
-		shouldConvert(rec, ext, write, aActionFinalizer, aReportProgress);
+		convertRec(rec, ext, write, aActionFinalizer, aReportProgress);
 	};
 
 	var write = function() {
@@ -331,34 +353,14 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 		data.append('Content-Type', rec.mimetype);
 		data.append('file', file);
 
-		var onuploadprogress = function(e) {
-
-			var total_size = formatBytes(rec.arrbuf.byteLength, 1);
-
-
-			var percent;
-			var uploaded_size;
-			if (e.lengthComputable) {
-				percent = Math.round((e.loaded / e.total) * 100);
-				uploaded_size = formatBytes(e.loaded, 1);
-			} else {
-				percent = '?';
-				uploaded_size = '?';
-			}
-
-			aReportProgress({
-				reason: formatStringFromName('uploading_progress', 'app', [percent, uploaded_size, total_size])
-			});
-		};
-
-
 		xhrAsync(
 			'https://gifaffe.s3.amazonaws.com/',
 			{
 				method: 'POST',
 				data,
-				onuploadprogress
+				onuploadprogress: genericOnUploadProgress.bind(null, rec, aReportProgress)
 			},
+			// verifyOauthXhrBind(rec, checkUpload, aActionFinalizer, aReportProgress)
 			checkUpload
 		);
 	};
@@ -620,7 +622,7 @@ function processAction(aArg, aReportProgress, aComm) {
 	var deferredMain_processAction = new Deferred();
 
 	console.log('worker - processAction - aArg:', aArg);
-	var rec = { actionid, duration, arrbuf, time, mimetype, action_options };
+	var rec = { serviceid, actionid, duration, arrbuf, time, mimetype, action_options };
 	// time - is time it was taken, i use that as videoid
 
 	gWorker['action_' + serviceid](rec, function(status) {
@@ -1176,6 +1178,7 @@ function xhrAsync(aUrlOrFileUri, aOptions={}, aCallback) { // 052716 - added tim
 	}
 
 	request.responseType = aOptions.responseType;
+	console.log('aOptions.data:', aOptions.data);
 	request.send(aOptions.data);
 
 	// console.log('response:', request.response);

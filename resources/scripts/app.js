@@ -770,11 +770,13 @@ var BootstrapAlert = React.createClass({
 		var data_copy = e.target.getAttribute('data-copy');
 		callInBootstrap('copyText', data_copy);
 		e.preventDefault(); // so it doesnt jump to hash
+		e.stopPropagation();
 	},
 	launchClick: function(e) {
 		var data_launch = e.target.getAttribute('data-launch');
 		callInBootstrap('launchUrl', data_launch);
 		e.preventDefault(); // so it doesnt jump to hash
+		e.stopPropagation();
 	},
 	render: function() {
 		var { alertid, glyph, dismiss_dispatcher, color='info', children, title, body, body_prefix, body_suffix } = this.props;
@@ -844,17 +846,23 @@ var BootstrapAlert = React.createClass({
 							cChildren.push( formatStringFromNameCore('upload_success', 'app') );
 
 							var links_json = JSON.parse(body_rest);
-							cChildren.push( React.createElement('br') );
-							cChildren.push( React.createElement('br') );
 
-							var linkChildren = [];
-							for (var p in links_json) {
-								cChildren.push( formatStringFromNameCore('newrecording_alert' + p, 'app') );
-								cChildren.push( '-' );
-								cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.launchClick, 'data-launch':links_json[p] }, formatStringFromNameCore('newrecording_alertlink_opentab', 'app') ) );
-								cChildren.push( '-' );
-								cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.copyClick, 'data-copy':links_json[p] }, formatStringFromNameCore('newrecording_alertlink_copylink', 'app') ) );
+							if (title == 'gfycat' || title == 'gfycatanon') {
 								cChildren.push( React.createElement('br') );
+								cChildren.push( React.createElement('br') );
+
+								var linkChildren = [];
+								for (var p in links_json) {
+									cChildren.push( formatStringFromNameCore('newrecording_alert' + p, 'app') );
+									cChildren.push( '-' );
+									cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.launchClick, 'data-launch':links_json[p] }, formatStringFromNameCore('newrecording_alertlink_opentab', 'app') ) );
+									cChildren.push( '-' );
+									cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.copyClick, 'data-copy':links_json[p] }, formatStringFromNameCore('newrecording_alertlink_copylink', 'app') ) );
+									cChildren.push( React.createElement('br') );
+								}
+							} else {
+								cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.launchClick, 'data-launch':links_json.link }, formatStringFromNameCore('newrecording_alertlink_opentab', 'app') ) );
+								cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.copyClick, 'data-copy':links_json.link }, formatStringFromNameCore('newrecording_alertlink_copylink', 'app') ) );
 							}
 
 						break;
