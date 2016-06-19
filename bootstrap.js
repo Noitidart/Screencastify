@@ -1,11 +1,13 @@
 // Imports
-const {interfaces: Ci, utils: Cu, classes:Cc} = Components;
+const {interfaces: Ci, utils: Cu, classes:Cc, Constructor: CC} = Components;
 Cu.import('resource://gre/modules/Services.jsm');
 Cu.import('resource:///modules/CustomizableUI.jsm');
 
 const COMMONJS_URI = 'resource://gre/modules/commonjs';
 const { require } = Cu.import(COMMONJS_URI + '/toolkit/require.js', {});
 var CLIPBOARD = require('sdk/clipboard');
+
+var nsIFile = CC('@mozilla.org/file/local;1', Ci.nsILocalFile, 'initWithPath');
 
 // Globals
 var core = {
@@ -376,6 +378,9 @@ function launchUrl(aURL) {
 	var window = Services.wm.getMostRecentWindow('navigator:browser');
 	window.gBrowser.loadOneTab(aURL, { inBackground:false });
 }
+function expoloreInSystem(aOSPath) {
+	showFileInOSExplorer(new nsIFile(aOSPath));
+}
 // end - functions called by framescript
 
 // start - functions called by worker
@@ -483,6 +488,31 @@ function testCallBootstrapFromContent_cbAndFullXfer(aArg, aReportProgress, aComm
 }
 
 //start - common helper functions
+// rev3 - https://gist.github.com/Noitidart/feeec1776c6ee4254a34
+function showFileInOSExplorer(aNsiFile, aDirPlatPath, aFileName) {
+	// can pass in aNsiFile
+	if (aNsiFile) {
+		//http://mxr.mozilla.org/mozilla-release/source/browser/components/downloads/src/DownloadsCommon.jsm#533
+		// opens the directory of the aNsiFile
+
+		if (aNsiFile.isDirectory()) {
+			aNsiFile.launch();
+		} else {
+			aNsiFile.reveal();
+		}
+	} else {
+		var cNsiFile = new nsIFile(aDirPlatPath);
+
+		if (!aFileName) {
+			// its a directory
+			cNsiFile.launch();
+		} else {
+			cNsiFile.append(aFileName);
+			cNsiFile.reveal();
+		}
+	}
+}
+
 // rev3 - not yet comitted to gist - reports back filter ext picked
 // rev2 - not yet commited to gist.github
 function browseFile(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {

@@ -778,6 +778,12 @@ var BootstrapAlert = React.createClass({
 		e.preventDefault(); // so it doesnt jump to hash
 		e.stopPropagation();
 	},
+	opendirClick: function(e) {
+		var data_launch = e.target.getAttribute('data-opendir');
+		callInBootstrap('expoloreInSystem', data_launch);
+		e.preventDefault(); // so it doesnt jump to hash
+		e.stopPropagation();
+	},
 	render: function() {
 		var { alertid, glyph, dismiss_dispatcher, color='info', children, title, body, body_prefix, body_suffix } = this.props;
 
@@ -845,6 +851,15 @@ var BootstrapAlert = React.createClass({
 					case 'CANCELLED':
 							cChildren.push( formatStringFromNameCore('cancelled', 'app') );
 						break;
+					case 'FILE_SAVE_SUCCESS_RESULTS':
+
+							var links_json = JSON.parse(body_rest);
+
+							cChildren.push( formatStringFromNameCore('filesave_success', 'app') );
+							cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.launchClick, 'data-launch':links_json.link }, formatStringFromNameCore('newrecording_alertlink_opentab', 'app') ) );
+							cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.opendirClick, 'data-opendir':links_json.link }, formatStringFromNameCore('newrecording_alertlink_opensystem', 'app') ) );
+							cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.copyClick, 'data-copy':links_json.link }, formatStringFromNameCore('newrecording_alertlink_copylink', 'app') ) );
+						break;
 					case 'UPLOAD_SUCCESS_RESULTS':
 							cChildren.push( formatStringFromNameCore('upload_success', 'app') );
 
@@ -866,6 +881,10 @@ var BootstrapAlert = React.createClass({
 							} else {
 								cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.launchClick, 'data-launch':links_json.link }, formatStringFromNameCore('newrecording_alertlink_opentab', 'app') ) );
 								cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.copyClick, 'data-copy':links_json.link }, formatStringFromNameCore('newrecording_alertlink_copylink', 'app') ) );
+							}
+
+							if (links_json.link_edit) {
+								cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.launchClick, 'data-launch':links_json.link_edit }, formatStringFromNameCore('newrecording_alertlink_openedit', 'app') ) );
 							}
 
 						break;

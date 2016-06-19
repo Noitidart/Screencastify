@@ -19,7 +19,6 @@ var gConversionArgs = {
 		'-vcodec', 'libx264',
 		'-pix_fmt', 'yuv420p',
 		'-vf', 'showinfo',
-		'-strict', '-2',
 		'-acodec', 'aac',
 		'output.mp4'
 	]
@@ -140,12 +139,12 @@ function buildOSFileErrorString(aMethod, aOSFileError) {
 	switch (aMethod) {
 		case 'writeAtomic':
 				var explain;
-				if (OSFileError.becauseNoSuchFile) {
+				if (aOSFileError.becauseNoSuchFile) {
 					explain = formatStringFromName('osfileerror_writeatomic_nosuchfile')
 				} else {
 					explain = formatStringFromName('osfileerror_unknownreason', 'main');
 				}
-				formatStringFromName('osfileerror_' + aMethod, 'app', [explain, OSFileError.winLastError || OSFileError.unixErrno])
+				formatStringFromName('osfileerror_' + aMethod, 'app', [explain, aOSFileError.winLastError || aOSFileError.unixErrno])
 			break;
 	}
 }
@@ -255,6 +254,7 @@ function genericOnUploadProgress(rec, aReportProgress, e) {
 ////// start - non-oauth actions
 function action_browse(rec, aActionFinalizer, aReportProgress) {
 	// action for save-browse
+	console.error('action browse called!');
 
 	// start async-proc0003
 	var filepath;
@@ -287,10 +287,11 @@ function action_browse(rec, aActionFinalizer, aReportProgress) {
 						reason_code: 'CANCELLED'
 					});
 				} else {
-					var { filepath, filter } = aArg;
+					filepath = aArg.filepath;
+					filter = aArg.filter;
 					// filepath should be safed, as the browse dialog wont let in illegal characters
 					var ext = filter.substr(2); // as i start filters with a *.
-					if (!filepath.toLowerCase().endsWith('.' + filter)) {
+					if (!filepath.toLowerCase().endsWith('.' + ext)) {
 						filepath += '.' + ext;
 					}
 					tryConvert(ext);
@@ -312,7 +313,10 @@ function action_browse(rec, aActionFinalizer, aReportProgress) {
 		try {
 			OS.File.writeAtomic( filepath, new Uint8Array(rec.arrbuf) );
 			aActionFinalizer({
-				ok: true
+				ok: true,
+				reason_code: 'FILE_SAVE_SUCCESS_RESULTS-' + JSON.stringify({
+					link: filepath
+				})
 			});
 		} catch (OSFileError) {
 			console.error('OSFileError:', OSFileError);
@@ -349,7 +353,6 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 			body_prefix: undefined, // remove the had to convert to gif prefix, in case it was there
 			reason: formatStringFromName('uploading_init', 'app')
 		});
-		return;
 
 		var blob = new Blob([new Uint8Array(rec.arrbuf)], { type:rec.mimetype });
 		var file = new File([blob], autogenScreencastFileName(rec.time));
@@ -601,7 +604,10 @@ function action_quick(rec, aActionFinalizer, aReportProgress) {
 		try {
 			OS.File.writeAtomic( buildPathForScreencast(path, rec), new Uint8Array(rec.arrbuf) );
 			aActionFinalizer({
-				ok: true
+				ok: true,
+				reason_code: 'FILE_SAVE_SUCCESS_RESULTS-' + JSON.stringify({
+					link: buildPathForScreencast(path, rec)
+				})
 			});
 		} catch (OSFileError) {
 			console.error('OSFileError:', OSFileError);
