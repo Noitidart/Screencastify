@@ -1178,7 +1178,6 @@ function xhrAsync(aUrlOrFileUri, aOptions={}, aCallback) { // 052716 - added tim
 	}
 
 	request.responseType = aOptions.responseType;
-	console.log('aOptions.data:', aOptions.data);
 	request.send(aOptions.data);
 
 	// console.log('response:', request.response);
