@@ -200,6 +200,17 @@ function convertRec(rec, to, aResumeCallback, aActionFinalizer, aReportProgress)
 		} else {
 			if (aConvArg.status) {
 				rec.arrbuf = aConvArg.arrbuf;
+				switch (to) {
+					case 'gif':
+							rec.mimetype = 'image/gif';
+						break;
+					case 'mp4':
+							rec.mimetype = 'video/mp4';
+						break;
+					case 'webm':
+							rec.mimetype = 'video/webm';
+						break;
+				}
 				aResumeCallback();
 			} else {
 				var finalize_obj = {
