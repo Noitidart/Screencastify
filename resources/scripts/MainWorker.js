@@ -694,11 +694,11 @@ function to_rfc3986(aStr) {
 	// https://af-design.com/2008/03/14/rfc-3986-compliant-uri-encoding-in-javascript/
 	// i should test with the samples given here - https://dev.twitter.com/oauth/overview/percent-encoding-parameters
 	var tmp =  encodeURIComponent(aStr);
-	tmp = tmp.replace('!','%21');
-	tmp = tmp.replace('*','%2A');
-	tmp = tmp.replace('(','%28');
-	tmp = tmp.replace(')','%29');
-	tmp = tmp.replace("'",'%27');
+	tmp = tmp.replace(/\!/g,'%21');
+	tmp = tmp.replace(/\*/g,'%2A');
+	tmp = tmp.replace(/\(/g,'%28');
+	tmp = tmp.replace(/\)/g,'%29');
+	tmp = tmp.replace(/'/g,'%27');
 	return tmp;
 }
 
@@ -1084,6 +1084,7 @@ function formatStringFromName(aKey, aLocalizedPackageName, aReplacements) {
 
 function xhrAsync(aUrlOrFileUri, aOptions={}, aCallback) { // 052716 - added timeout support
 	// console.error('in xhr!!! aUrlOrFileUri:', aUrlOrFileUri);
+	if (!aUrlOrFileUri && aOptions.url) { aUrlOrFileUri = aOptions.url }
 
 	// all requests are sync - as this is in a worker
 	var aOptionsDefaults = {

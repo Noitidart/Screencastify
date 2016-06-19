@@ -804,10 +804,13 @@ var BootstrapAlert = React.createClass({
  			if (core.addon.id == 'Screencastify@jetpack' && body_case) {
  				// create special for Screencastify
 
-				body_case = body_case[0];
-				var body_rest = body.substr(body_case.length);
-				if (body_rest[0] == '-') {
-					body_rest = body_rest.substr(1);
+				var body_rest;
+				if (body_case) {
+					body_case = body_case[0];
+					var body_rest = body.substr(body_case.length);
+					if (body_rest[0] == '-') {
+						body_rest = body_rest.substr(1);
+					}
 				}
 
 				console.log('body_case:', body_case, 'body_rest:', body_rest);
@@ -828,7 +831,7 @@ var BootstrapAlert = React.createClass({
 							// CONVERTING_PROGRESS-gif_progress string here
 							var body_rest_pt1 = body_rest.substr( 0, body_rest.indexOf('_') );
 							var body_rest_pt2 = body_rest.substr( body_rest.indexOf('_')+1 );
-							// console.log('body_rest_pt1:', body_rest_pt1, 'body_rest_pt2:', body_rest_pt2);
+							console.log('body_rest_pt1:', body_rest_pt1, 'body_rest_pt2:', body_rest_pt2);
 
 							cChildren.push( formatStringFromNameCore('newrecording_alertbody_convprog' + body_rest_pt1, 'app', [body_rest_pt2]) );
 						break;
@@ -1512,7 +1515,7 @@ function formatStringFromNameCore(aLocalizableStr, aLoalizedKeyInCoreAddonL10n, 
 	// 051916 update - made it core.addon.l10n based
     // formatStringFromNameCore is formating only version of the worker version of formatStringFromName, it is based on core.addon.l10n cache
 
-	try { var cLocalizedStr = core.addon.l10n[aLoalizedKeyInCoreAddonL10n][aLocalizableStr]; } catch (ex) { console.error('formatStringFromNameCore error:', ex, 'args:', aLocalizableStr, aLoalizedKeyInCoreAddonL10n, aReplacements); } // remove on production
+	try { var cLocalizedStr = core.addon.l10n[aLoalizedKeyInCoreAddonL10n][aLocalizableStr]; if (!cLocalizedStr) { throw new Error('localized is undefined'); } } catch (ex) { console.error('formatStringFromNameCore error:', ex, 'args:', aLocalizableStr, aLoalizedKeyInCoreAddonL10n, aReplacements); } // remove on production
 
 	var cLocalizedStr = core.addon.l10n[aLoalizedKeyInCoreAddonL10n][aLocalizableStr];
 	// console.log('cLocalizedStr:', cLocalizedStr, 'args:', aLocalizableStr, aLoalizedKeyInCoreAddonL10n, aReplacements);
