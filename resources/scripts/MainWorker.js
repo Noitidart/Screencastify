@@ -58,8 +58,6 @@ function init(objCore) {
 self.onclose = function() {
 	console.log('doing mainworker term proc');
 
-	writeHydrants();
-
 	workerComm_unregAll();
 
 	switch (core.os.mname) {
@@ -635,7 +633,7 @@ function fetchHydrant(head, aComm) {
 
 	if (!gHydrants) {
 		try {
-			gHydrants = JSON.parse(OS.File.read(OS.Path.join(core.addon.path.storage, 'hydrants.json')));
+			gHydrants = JSON.parse(OS.File.read(OS.Path.join(core.addon.path.storage, 'hydrants.json'), {encoding:'utf-8'}));
 		} catch (OSFileError) {
 			if (OSFileError.becauseNoSuchFile) {
 				gHydrants = {};
@@ -647,13 +645,21 @@ function fetchHydrant(head, aComm) {
 	return gHydrants[head];
 }
 
+var gWriteHydrantsTimeout;
 function updateHydrant(aArg, aComm) {
 	var { head, hydrant } = aArg;
 	gHydrants[head] = hydrant;
+
+	if (gWriteHydrantsTimeout) {
+		clearTimeout(gWriteHydrantsTimeout);
+	}
+	gWriteHydrantsTimeout = setTimeout(writeHydrants, 30000);
 }
 
 function writeHydrants() {
+	gWriteHydrantsTimeout = null;
 	if (gHydrants) {
+		console.error('writing hydrants.json');
 		writeThenDir(OS.Path.join(core.addon.path.storage, 'hydrants.json'), JSON.stringify(gHydrants), OS.Constants.Path.profileDir);
 	}
 }
