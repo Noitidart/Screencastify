@@ -343,8 +343,8 @@ var pageLoader = {
 function init() {
 	gBsComm = new crossprocComm(core.addon.id);
 
-	gBsComm.transcribeMessage('fetchCore', null, function(aCore, aComm) {
-		core = aCore;
+	gBsComm.transcribeMessage('fetchCore', null, function(aArg, aComm) {
+		core = aArg.core;
 		console.log('ok updated core to:', core);
 
 		// addEventListener('unload', uninit, false);

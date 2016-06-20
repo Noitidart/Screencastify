@@ -130,6 +130,10 @@ button {
     outline: 0 !important;
 }
 
+textarea {
+    resize: vertical;
+}
+
 .has-error .form-control {
     border-color: #843534;
     box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 3px #ce8483;
@@ -171,27 +175,40 @@ button {
     background-image: none;
     top: 0;
     left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 #confirmui_dialog h3 {
     margin: 0 0 15px 0;
 }
 #confirmui_dialog {
     width: 50vw;
-    position: absolute;
-    left: 25vw;
-    bottom: 30vh;
+    position: relative;
+    top: -100vh;
     background-color: #fff;
     background-image: none;
-    transition: bottom 300ms;
+    transition: top 300ms;
+    flex: 0 1 auto;
 }
 #confirmui_dialog button {
-    background-color: #fff;
     background-image: none;
+    /*background-color: #fff;*/
 }
 
-#confirmui_dialog button:hover {
+#confirmui_dialog .btn-group {
+    margin-bottom: 15px;
+}
+
+#confirmui_dialog button.btn-default:not(:hover):not(.active) {
     background-color: #fff;
-    background-image: inherit;
+}
+
+#confirmui_dialog .btn-group {
+    display: flex;
+}
+#confirmui_dialog .btn-group button {
+    flex-grow: 1;
 }
 
 /* start AuthPage */

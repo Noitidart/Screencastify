@@ -5,6 +5,7 @@ importScripts('resource://gre/modules/osfile.jsm');
 var core;
 var gBsComm;
 var gConvWkComm;
+var gHydrants; // keys are getPage() names, like NewRecordingPage and value is an object which is its hydrant
 
 // build arguments for ffmpeg based on target conversion type
 var gConversionArgs = {
@@ -56,6 +57,9 @@ function init(objCore) {
 // Start - Addon Functionality
 self.onclose = function() {
 	console.log('doing mainworker term proc');
+
+	writeHydrants();
+
 	workerComm_unregAll();
 
 	switch (core.os.mname) {
@@ -67,6 +71,7 @@ self.onclose = function() {
 
 			break;
 	}
+
 	console.log('ok ready to terminate');
 }
 
@@ -625,6 +630,34 @@ function action_quick(rec, aActionFinalizer, aReportProgress) {
 
 
 // start - functions called by bootstrap
+function fetchHydrant(head, aComm) {
+	// returns undefined if no hydrant, otherwise the page will overwrite its hydrant with an empty object which will screw up all the default values for redux
+
+	if (!gHydrants) {
+		try {
+			gHydrants = JSON.parse(OS.File.read(OS.Path.join(core.addon.path.storage, 'hydrants.json')));
+		} catch (OSFileError) {
+			if (OSFileError.becauseNoSuchFile) {
+				gHydrants = {};
+			}
+			else { console.error('OSFileError:', OSFileError); throw new Error('error when trying to ready hydrant:', OSFileError); }
+		}
+	}
+
+	return gHydrants[head];
+}
+
+function updateHydrant(aArg, aComm) {
+	var { head, hydrant } = aArg;
+	gHydrants[head] = hydrant;
+}
+
+function writeHydrants() {
+	if (gHydrants) {
+		writeThenDir(OS.Path.join(core.addon.path.storage, 'hydrants.json'), JSON.stringify(gHydrants), OS.Constants.Path.profileDir);
+	}
+}
+
 function bootstrapTimeout(milliseconds) {
 	var mainDeferred_bootstrapTimeout = new Deferred();
 	setTimeout(function() {
@@ -941,15 +974,15 @@ function writeThenDir(aPlatPath, aContents, aDirFrom, aOptions={}) {
 
 	var cOptionsDefaults = {
 		encoding: 'utf-8',
-		noOverwrite: false,
+		noOverwrite: false
 		// tmpPath: aPlatPath + '.tmp'
-	}
-
-	var do_write = function() {
-		return OS.File.writeAtomic(aPlatPath, aContents, aOptions); // doing unixMode:0o4777 here doesn't work, i have to `OS.File.setPermissions(path_toFile, {unixMode:0o4777})` after the file is made
 	};
 
+	aOptions = Object.assign(cOptionsDefaults, aOptions);
 
+	var do_write = function() {
+		OS.File.writeAtomic(aPlatPath, aContents, aOptions); // doing unixMode:0o4777 here doesn't work, i have to `OS.File.setPermissions(path_toFile, {unixMode:0o4777})` after the file is made
+	};
 
 	try {
 		do_write();

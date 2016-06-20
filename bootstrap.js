@@ -57,7 +57,10 @@ var gGenCssUri;
 function install() {}
 
 function uninstall(aData, aReason) {
-	if (aReason == ADDON_UNINSTALL) {}
+	if (aReason == ADDON_UNINSTALL) {
+		Cu.import('resource://gre/modules/osfile.jsm');
+		OS.File.removeDir(core.addon.storage);
+	}
 }
 
 function startup(aData, aReason) {
@@ -351,7 +354,17 @@ function FHR() {
 
 // start - functions called by framescript
 function fetchCore(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
-	return core;
+	return {core};
+}
+function fetchCoreAndHydrant(head, aReportProgress, aComm, aMessageManager, aBrowser) {
+	var deferredMain_fetchCoreAndHydrant = new Deferred();
+	callInWorker('fetchHydrant', head, function(hydrant, aComm) {
+		deferredMain_fetchCoreAndHydrant.resolve({
+			hydrant,
+			core
+		});
+	});
+	return deferredMain_fetchCoreAndHydrant.promise;
 }
 function closeSelfTab(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
 	var window = aBrowser.ownerDocument.defaultView;

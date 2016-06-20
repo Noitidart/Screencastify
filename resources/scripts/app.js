@@ -46,33 +46,38 @@ function getPage() {
 getPage();
 
 function init() {
-	callInBootstrap('fetchCore', undefined, function(aCore) {
-		console.log('core:', aCore);
-		core = aCore;
+	callInBootstrap(hydrant ? 'fetchCoreAndHydrant' : 'fetchCore', gPage.name, function(aArg) {
+		console.error('aArg in app.js:', aArg);
+		core = aArg.core;
 
+		// set up some listeners
 		window.addEventListener('unload', uninit, false);
 
-		// // update favicon as the setCurrentURI and pushState trick ruins it
-		// var link = document.createElement('link');
-	    // link.type = 'image/x-icon';
-	    // link.rel = 'shortcut icon';
-	    // link.href = core.addon.path.images + 'icon-color16.png';
-	    // document.getElementsByTagName('head')[0].appendChild(link);
-		var link = document.querySelector('link');
-		link.setAttribute('href', 'blah');
-		link.setAttribute('href', core.addon.path.images + 'icon-color16.png');
+		// setup and start redux
+		if (aArg.hydrant) {
+			// dont update hydrant if its undefined, otherwise it will screw up all default values for redux
+			hydrant = aArg.hydrant;
+		}
 
-		console.log('ok rendering react');
+		store = Redux.createStore(app);
 
-		var page = gPage;
+		if (hydrant) {
+			store.subscribe(shouldUpdateHydrant);
+		}
 
+		// render react
 		ReactDOM.render(
 			React.createElement(ReactRedux.Provider, { store },
-				React.createElement(App, {page})
+				React.createElement(App, {page:gPage})
 			),
 			document.getElementById('root')
 		);
-		console.log('ok RENDERED react');
+
+		// update favicon as the setCurrentURI and pushState trick ruins it
+		var link = document.querySelector('link');
+		link.setAttribute('href', 'blah');
+		link.setAttribute('href', core.addon.path.images + 'icon-color16.png');
+		
 	});
 }
 
@@ -97,6 +102,7 @@ switch (gPage.name) {
 	case 'NewRecordingPage':
 			var SET_PARAM = 'SET_PARAM';
 			var TOGGLE_OPT = 'TOGGLE_OPT';
+			var SET_OPT = 'SET_OPT';
 			var UPDATE_RECSTATE = 'UPDATE_RECSTATE';
 			var CHANGE_ACTIVE_ACTION = 'CHANGE_ACTIVE_ACTION';
 			var ADD_ALERT = 'ADD_ALERT';
@@ -139,6 +145,14 @@ switch (gPage.name) {
 				return {
 					type: TOGGLE_OPT,
 					opt
+				}
+			}
+
+			function setOpt(opt, value) {
+				return {
+					type: SET_OPT,
+					opt,
+					value
 				}
 			}
 
@@ -211,6 +225,7 @@ switch (gPage.name) {
 					mic: bool - default:false
 					webcam: bool - default:false
 					systemaudio: bool - default:false
+					youtubeprivacy: string - default:public - enum[public,private,unlisted]
 				},
 				params: {
 					systemvideo: enum[SYSTEMVIDEO_MONITOR, SYSTEMVIDEO_WINDOW, SYSTEMVIDEO_APPLICATION] - default:SYSTEMVIDEO_MONITOR
@@ -222,8 +237,13 @@ switch (gPage.name) {
 				dialog: null
 			};
 			*/
+			var hydrant = {
+				params: {systemvideo:SYSTEMVIDEO_MONITOR, fps:10},
+				options: {mic:false, webcam:false, systemaudio:false, youtubeprivacy:'public', twitterformat:'gif'},
+				activeactions: { save:'quick', upload:'youtube', share:'twitter' }
+			};
 
-			function params(state={systemvideo:SYSTEMVIDEO_MONITOR, fps:10}, action) {
+			function params(state=hydrant.params, action) {
 				switch (action.type) {
 					case SET_PARAM:
 						return Object.assign({}, state, {
@@ -234,11 +254,15 @@ switch (gPage.name) {
 				}
 			}
 
-			function options(state={mic:false, webcam:false, systemaudio:false}, action) {
+			function options(state=hydrant.options, action) {
 				switch (action.type) {
 					case TOGGLE_OPT:
 						return Object.assign({}, state, {
 							[action.opt]: !state[action.opt]
+						});
+					case SET_OPT:
+						return Object.assign({}, state, {
+							[action.opt]: action.value
 						});
 					default:
 						return state;
@@ -254,7 +278,7 @@ switch (gPage.name) {
 				}
 			}
 
-			function activeactions(state={ save:'quick', upload:'gfycatanon', share:'twitter' }, action) {
+			function activeactions(state=hydrant.activeactions, action) {
 				switch (action.type) {
 					case CHANGE_ACTIVE_ACTION:
 						return Object.assign({}, state, {
@@ -322,9 +346,37 @@ const app = Redux.combineReducers(
 );
 
 // STORE
-var store = Redux.createStore(app);
+var store;
 
-var unsubscribe = store.subscribe(() => console.log(store.getState()) );
+// var unsubscribe = store.subscribe(() => console.log(store.getState()) );
+
+function shouldUpdateHydrant() {
+	console.log('in shouldUpdateHydrant');
+
+	var state = store.getState();
+
+	// check if hydrant updated
+	var hydrant_updated = false;
+	for (var p in hydrant) {
+		var is_different = React.addons.shallowCompare({props:hydrant[p]}, state[p]);
+		if (is_different) {
+			console.log('something in', p, 'of hydrant was updated');
+			hydrant_updated = true;
+			hydrant[p] = state[p];
+			// break; // dont break because we want to update the hydrant in this global scope for future comparing in this function.
+		}
+		console.log('compared', p, 'is_different:', is_different, 'state:', state[p], 'hydrant:', hydrant[p]);
+	}
+
+	if (hydrant_updated) {
+		callInWorker('updateHydrant', {
+			head: gPage.name,
+			hydrant
+		})
+	}
+
+	console.log('done shouldUpdateHydrant');
+}
 
 // REACT COMPONENTS - PRESENTATIONAL
 var App = React.createClass({
@@ -604,59 +656,139 @@ var NewRecordingPage = React.createClass({
 	// start - action handlers
 	// it figures out the service from the store
 	save: function() {
-		var { activeactions } = this.props;
+		var { activeactions } = this.props; // from mapStateToProps
 		var group = 'save';
 		var serviceid = activeactions[group];
 
 		processAction( { serviceid } );
 	},
 	upload: function() {
-		var { activeactions } = this.props;
+		var { activeactions, youtubeprivacy } = this.props; // from mapStateToProps
 		var group = 'upload';
 		var serviceid = activeactions[group];
 
-		processAction( { serviceid } );
+		switch (serviceid) {
+			case 'youtube':
+			case 'facebook':
+					this.showDialog(serviceid);
+				break;
+			default:
+				processAction( { serviceid } );
+		}
 	},
 	share: function() {
-		var { activeactions } = this.props;
+		var { activeactions } = this.props; // from mapStateToProps
+
 		var group = 'share';
 		var serviceid = activeactions[group];
 
-		if (serviceid == 'twitter') {
-			store.dispatch(setDialog([
-				{ label: formatStringFromNameCore('newrecording_looping_gif', 'app'), onClick:this.twitterGif },
-				{ label: formatStringFromNameCore('newrecording_video', 'app'), onClick:this.twitterVideo },
-				{ label: formatStringFromNameCore('cancel', 'app'), onClick:this.dialogCancel }
-			]))
-		} else {
-			processAction( { serviceid } );
+		switch (serviceid) {
+			case 'twitter':
+			case 'facebook':
+					this.showDialog(serviceid);
+				break;
+			default:
+				processAction( { serviceid } );
+		}
+	},
+
+	showDialog: function(serviceid) {
+		var { twitterformat, youtubeprivacy } = this.props; // from mapStateToProps
+
+		switch (serviceid) {
+			case 'facebook':
+					store.dispatch(setDialog([
+						{ type:'textarea', id:'facebookmessage', label:'Message', placeholder:'Type a message that should be posted along with this screencast'},
+						{ label: 'Share', color:'success', onClick:this.facebookContinue },
+						{ label: formatStringFromNameCore('cancel', 'app'), color:'danger', onClick:this.dialogCancel }
+					]));
+				break;
+			case 'twitter':
+					store.dispatch(setDialog([
+						{ type:'textarea', id:'twittertweet', label:'Tweet (Max Characters: 144)', placeholder:'Type a message that should be tweeted along with this screencast', maxLength:144 },
+						{ type:'buttongroup', items: [
+								{ label:formatStringFromNameCore('newrecording_looping_gif', 'app'), onClick:this.twitterFormatGif, active:(twitterformat=='gif') },
+								{ label:formatStringFromNameCore('newrecording_video', 'app'), onClick:this.twitterFormatMp4, active:(twitterformat=='mp4') }
+							]
+						},
+						{ label: 'Tweet', color:'success', onClick:this.twitterContinue },
+						{ label: formatStringFromNameCore('cancel', 'app'), color:'danger', onClick:this.dialogCancel }
+					]));
+				break;
+			case 'youtube':
+					store.dispatch(setDialog([
+						{ type:'input', id:'youtubetitle', label:'Title', placeholder:'Name of this video' },
+						{ type:'input', id:'youtubedescription', label:'Description', placeholder:'Describe this video' },
+						{ type:'buttongroup', items: [
+								{ label:'Public', onClick:this.youtubePrivacyPublic, active:(youtubeprivacy=='public') },
+								{ label:'Private', onClick:this.youtubePrivacyPrivate, active:(youtubeprivacy=='private') },
+								{ label:'Unlisted', onClick:this.youtubePrivacyUnlisted, active:(youtubeprivacy=='unlisted') }
+							]
+						},
+						{ label: 'Upload', color:'success', onClick:this.dialogYoutube },
+						{ label: 'Cancel', color:'danger', onClick:this.dialogCancel }
+					]));
+				break;
 		}
 	},
 	// end - action handlers
 	// alert box handler
 	dismiss_dispatcher: function(alertid) {
-		var { removeAlert } = this.props;
+		var { removeAlert } = this.props; // from mapDispatchToProps
 		removeAlert(alertid);
 		callInWorker('cancelActionFlow', alertid); // NOTE: alertid is the actionid in my use case in Screencastify link5757
 	},
 	// dialog onClicks
-	twitterGif: function() {
-		store.dispatch(destroyDialog());
-		processAction({
-			serviceid: 'twitter',
-			action_options: {
-				convert_to_ext: 'gif'
-			}
-		});
+	twitterFormatGif: function() {
+		store.dispatch(setOpt('twitterformat', 'gif'));
+		setTimeout(function() { this.showDialog('twitter') }.bind(this), 0); // TODO: this is a good case for an async redux dispatcher --- ACTUALLY maybe not i need to understand why the dispatch in this line is seemingly happening before the dispatch on the previous line because the gui buttons are not updating until next render and are late by a render
 	},
-	twitterVideo: function() {
-		store.dispatch(destroyDialog());
+	twitterFormatMp4: function() {
+		store.dispatch(setOpt('twitterformat', 'mp4'));
+		setTimeout(function() { this.showDialog('twitter') }.bind(this), 0); // TODO: this is a good case for an async redux dispatcher --- ACTUALLY maybe not i need to understand why the dispatch in this line is seemingly happening before the dispatch on the previous line because the gui buttons are not updating until next render and are late by a render
+	},
+	twitterContinue: function() {
+		var { twitterformat } = this.props; // from mapStateToProps
 		processAction({
 			serviceid: 'twitter',
 			action_options: {
-				convert_to_ext: 'mp4'
+				twitterformat: twitterformat,
+				twittertweet: document.getElementById('twittertweet').value
 			}
 		});
+		store.dispatch(destroyDialog());
+	},
+	facebookContinue: function() {
+		processAction({
+			serviceid: 'facebook',
+			action_options: {
+				facebookmessage: document.getElementById('facebookmessage').value
+			}
+		});
+		store.dispatch(destroyDialog());
+	},
+	youtubePrivacyPublic: function() {
+		store.dispatch(setOpt('youtubeprivacy', 'public'));
+		setTimeout(function() { this.showDialog('youtube') }.bind(this), 0); // TODO: this is a good case for an async redux dispatcher --- ACTUALLY maybe not i need to understand why the dispatch in this line is seemingly happening before the dispatch on the previous line because the gui buttons are not updating until next render and are late by a render
+	},
+	youtubePrivacyPrivate: function() {
+		store.dispatch(setOpt('youtubeprivacy', 'private'));
+		setTimeout(function() { this.showDialog('youtube') }.bind(this), 0); // TODO: this is a good case for an async redux dispatcher --- ACTUALLY maybe not i need to understand why the dispatch in this line is seemingly happening before the dispatch on the previous line because the gui buttons are not updating until next render and are late by a render
+	},
+	youtubePrivacyUnlisted: function() {
+		store.dispatch(setOpt('youtubeprivacy', 'unlisted'));
+		setTimeout(function() { this.showDialog('youtube') }.bind(this), 0); // TODO: this is a good case for an async redux dispatcher --- ACTUALLY maybe not i need to understand why the dispatch in this line is seemingly happening before the dispatch on the previous line because the gui buttons are not updating until next render and are late by a render
+	},
+	youtubeContinue: function() {
+		processAction({
+			serviceid: 'youtube',
+			action_options: {
+				youtubeprivacy: this.props.youtubeprivacy,
+				youtubetitle: document.getElementById('youtubetitle').value,
+				youtubedescription: document.getElementById('youtubedescription').value
+			}
+		});
+		store.dispatch(destroyDialog());
 	},
 	dialogCancel: function() {
 		store.dispatch(destroyDialog());
@@ -944,9 +1076,12 @@ var ConfirmUI = React.createClass({
 	// inspired by https://developer.mozilla.org/en-US/docs/Mozilla/Tech/XPCOM/Reference/Interface/nsIPromptService#confirmEx_example
 	// and https://react-bootstrap.github.io/components.html#buttons-sizes block buttons in well
 	componentDidMount: function() {
-		setTimeout(function() {
-			document.getElementById('confirmui_dialog').style.bottom = '';
-		}, 100);
+		var first_input = ReactDOM.findDOMNode(this).querySelector('input');
+		var first_textarea = ReactDOM.findDOMNode(this).querySelector('textarea');
+		(first_input || first_textarea).focus();
+		setTimeout(function() { // setTimeout so allow the transition to happen, otherwise its created instantly with top of 0 and nothing to transition from
+			document.getElementById('confirmui_dialog').style.top = '0';
+		}.bind(this), 100);
 	},
 	render: function() {
 		var { caption, items } = this.props;
@@ -959,13 +1094,35 @@ var ConfirmUI = React.createClass({
 			}
 		*/
 		return React.createElement('div', { id:'confirmui_cover' },
-			React.createElement('div', { id:'confirmui_dialog', className:'well', style:{bottom:'100vh'} },
+			React.createElement('div', { id:'confirmui_dialog', className:'well' },
 				// React.createElement('h3', undefined,
 				// 	caption
 				// ),
-				items.map(item => React.createElement('button', { className:'btn-block btn btn-lg btn-default', onClick:item.onClick },
-					item.label
-				))
+				items.map(item => {
+					if (item.type && item.type == 'textarea') {
+						return React.createElement('div', { className:'form-group form-group-lg' },
+							React.createElement('label', { htmlFor:'dialog_input_'+item.id },
+								item.label
+							),
+							React.createElement('textarea', { className:'form-control', id:'dialog_input_'+item.id, placeholder:item.placeholder, maxLength:item.maxLength, defaultValue:item.defaultValue })
+						)
+					} else if (item.type && item.type == 'input') {
+						return React.createElement('div', { className:'form-group form-group-lg' },
+							React.createElement('label', { htmlFor:'dialog_input_'+item.id },
+								item.label
+							),
+							React.createElement('input', { className:'form-control input-lg', id:'dialog_input_'+item.id, placeholder:item.placeholder, defaultValue:item.defaultValue })
+						);
+					} else if (item.type && item.type == 'buttongroup') {
+						return React.createElement('div', { className:'btn-group btn-group-lg', role:'group' },
+								item.items.map( subitem => React.createElement('button', { className:'btn btn-lg btn-default' + (subitem.active ? ' active' : ''), onClick:subitem.onClick }, subitem.label) )
+						);
+					} else {
+						return React.createElement('button', { className:'btn-block btn btn-lg btn-'+(item.color || 'default') + (item.active ? ' active' : ''), onClick:item.onClick },
+							item.label
+						);
+					}
+				})
 			)
 		)
 	}
@@ -1407,7 +1564,9 @@ var NewRecordingContainer = ReactRedux.connect(
 			recording: state.recording,
 			activeactions: state.activeactions,
 			alerts: state.alerts,
-			dialog: state.dialog
+			dialog: state.dialog,
+			youtubeprivacy: state.options.youtubeprivacy,
+			twitterformat: state.options.twitterformat
 		}
 	},
 	function mapDispatchToProps(dispatch, ownProps) {
