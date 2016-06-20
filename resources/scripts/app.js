@@ -77,7 +77,7 @@ function init() {
 		var link = document.querySelector('link');
 		link.setAttribute('href', 'blah');
 		link.setAttribute('href', core.addon.path.images + 'icon-color16.png');
-		
+
 	});
 }
 
@@ -705,7 +705,7 @@ var NewRecordingPage = React.createClass({
 				break;
 			case 'twitter':
 					store.dispatch(setDialog([
-						{ type:'textarea', id:'twittertweet', label:'Tweet (Max Characters: 144)', placeholder:'Type a message that should be tweeted along with this screencast', maxLength:144 },
+						{ type:'textarea', id:'twittertweet', label:'Tweet (Max Characters: 140)', placeholder:'Type a message that should be tweeted along with this screencast', maxLength:140 },
 						{ type:'buttongroup', items: [
 								{ label:formatStringFromNameCore('newrecording_looping_gif', 'app'), onClick:this.twitterFormatGif, active:(twitterformat=='gif') },
 								{ label:formatStringFromNameCore('newrecording_video', 'app'), onClick:this.twitterFormatMp4, active:(twitterformat=='mp4') }
@@ -963,7 +963,11 @@ var BootstrapAlert = React.createClass({
 					case 'CONVERTING_FAIL':
 							// CONVERTING_FAIL-gif
 							// CONVERTING_FAIL-mp4
-							cChildren.push( formatStringFromNameCore('newrecording_alertbody_convfail' + body_rest, 'app') );
+							var rest_json = JSON.parse(body_rest);
+							cChildren.push( formatStringFromNameCore('newrecording_alertbody_convfail' + rest_json.to, 'app') );
+
+							var error_log_url = 'data:text/html,' + '<pre style="white-space:nowrap">' + escape(rest_json.printed.join('<br>')) + '</pre>';
+							cChildren.push( React.createElement( 'a', { href:'javascript:void(0)', className:'alert-link', onClick:this.launchClick, 'data-launch':error_log_url }, formatStringFromNameCore('newrecording_alertlink_openerrorlog', 'app') ) )
 						break;
 					case 'CONVERTING_PROGRESS':
 							// CONVERTING_PROGRESS-gif_progress string here

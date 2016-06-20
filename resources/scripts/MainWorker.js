@@ -217,7 +217,10 @@ function convertRec(rec, to, aResumeCallback, aActionFinalizer, aReportProgress)
 			} else {
 				var finalize_obj = {
 					ok: false,
-					reason_code: 'CONVERTING_FAIL-' + to
+					reason_code: 'CONVERTING_FAIL-' + JSON.stringify({
+						to,
+						printed: aConvArg.printed
+					})
 				};
 				// special and specific to gfycat
 				if (rec.serviceid == 'gfycat' || rec.serviceid == 'gfycatanon') {

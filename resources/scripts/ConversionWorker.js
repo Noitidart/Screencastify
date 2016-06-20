@@ -7,7 +7,6 @@ function init(aArg, aComm) {
 	importScripts(core.addon.path.scripts + '3rd/ffmpeg-all-codecs.js');
 }
 
-
 function run(aArg, aReportProgress, aComm) {
 	var { args, arrbuf } = aArg;
 
@@ -15,7 +14,10 @@ function run(aArg, aReportProgress, aComm) {
 		status: 'CONV_STARTED'
 	});
 
+	var printed = [];
+
 	var print = function(stdout) {
+		printed.push(stdout);
 		aReportProgress({
 			status: 'CONV_STDOUT',
 			stdout
@@ -30,9 +32,9 @@ function run(aArg, aReportProgress, aComm) {
 		print,
 		printErr: print
 	});
-	console.log('conversion done'); //, converted_files:', converted_files);
+	console.error('conversion done, printed:', printed, 'converted_files:', converted_files);
 
-	if (converted_files.length) {
+	if (converted_files[0].data.byteLength) {
 		return {
 			status: true,
 			arrbuf: converted_files[0].data,
@@ -40,7 +42,8 @@ function run(aArg, aReportProgress, aComm) {
 		}
 	} else {
 		return {
-			status: false
+			status: false,
+			printed
 		}
 	}
 }
