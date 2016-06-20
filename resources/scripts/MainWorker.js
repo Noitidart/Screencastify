@@ -58,7 +58,7 @@ function init(objCore) {
 self.onclose = function() {
 	console.log('doing mainworker term proc');
 
-	writeHydrants();
+	// writeHydrants();
 
 	workerComm_unregAll();
 
@@ -635,7 +635,7 @@ function fetchHydrant(head, aComm) {
 
 	if (!gHydrants) {
 		try {
-			gHydrants = JSON.parse(OS.File.read(OS.Path.join(core.addon.path.storage, 'hydrants.json')));
+			gHydrants = JSON.parse(OS.File.read(OS.Path.join(core.addon.path.storage, 'hydrants.json'), {encoding:'utf-8'}));
 		} catch (OSFileError) {
 			if (OSFileError.becauseNoSuchFile) {
 				gHydrants = {};
@@ -650,6 +650,7 @@ function fetchHydrant(head, aComm) {
 function updateHydrant(aArg, aComm) {
 	var { head, hydrant } = aArg;
 	gHydrants[head] = hydrant;
+	callInBootstrap('markWriteHydrants', gHydrants);
 }
 
 function writeHydrants() {

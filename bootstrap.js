@@ -2,6 +2,8 @@
 const {interfaces: Ci, utils: Cu, classes:Cc, Constructor: CC} = Components;
 Cu.import('resource://gre/modules/Services.jsm');
 Cu.import('resource:///modules/CustomizableUI.jsm');
+Cu.import('resource://gre/modules/AsyncShutdown.jsm');
+Cu.import('resource://gre/modules/osfile.jsm');
 
 const COMMONJS_URI = 'resource://gre/modules/commonjs';
 const { require } = Cu.import(COMMONJS_URI + '/toolkit/require.js', {});
@@ -54,12 +56,17 @@ var gWkComm;
 var gCuiCssUri;
 var gGenCssUri;
 
+var gHydrantsPendingWrite;
+
 function install() {}
 
 function uninstall(aData, aReason) {
 	if (aReason == ADDON_UNINSTALL) {
-		Cu.import('resource://gre/modules/osfile.jsm');
-		OS.File.removeDir(core.addon.storage);
+		OS.File.removeDir(OS.Path.join(OS.Constants.Path.profileDir, 'jetpack', core.addon.id), {
+			ignoreAbsent: true,
+			ignorePermissions: true
+		})
+		.then(x=>console.log('deleted'),y=>console.error('failed to delete:', y));
 	}
 }
 
@@ -90,6 +97,23 @@ function startup(aData, aReason) {
 			tooltiptext: 'extra info goes here for tooltip', // TODO: l10n
 			onCommand: cuiClick
 		});
+
+		AsyncShutdown.webWorkersShutdown.addBlocker(
+			'Screencastify - Write redux hydrants to profile folder',
+			function() {
+				// Services.prompt.alert(null, 'running blocker', 'redux hydrants');
+				var deferred_writeHydrants = new Deferred();
+				if (gHydrantsPendingWrite) {
+					writeThenDir(OS.Path.join(core.addon.path.storage, 'hydrants.json'), JSON.stringify(gHydrantsPendingWrite), OS.Constants.Path.profileDir).then(
+						()=>deferred_writeHydrants.resolve(),
+						()=>deferred_writeHydrants.reject()
+					);
+				} else {
+					deferred_writeHydrants.resolve();
+				}
+				return deferred_writeHydrants.promise;
+			}
+		);
 
 	});
 
@@ -397,6 +421,9 @@ function expoloreInSystem(aOSPath) {
 // end - functions called by framescript
 
 // start - functions called by worker
+function markWriteHydrants(aHydrants) {
+	gHydrantsPendingWrite = aHydrants;
+}
 function loadOneTab(aArg, aReportProgress, aComm) {
 	var window = Services.wm.getMostRecentWindow('navigator:browser');
 	window.gBrowser.loadOneTab(aArg.URL, aArg.params);
@@ -501,6 +528,56 @@ function testCallBootstrapFromContent_cbAndFullXfer(aArg, aReportProgress, aComm
 }
 
 //start - common helper functions
+function writeThenDir(aPlatPath, aContents, aDirFrom, aOptions={}) {
+	// tries to writeAtomic
+	// if it fails due to dirs not existing, it creates the dir
+	// then writes again
+	// if fail again for whatever reason it throws
+	var deferredMain_writeThenDir = new Deferred();
+
+	var cOptionsDefaults = {
+		encoding: 'utf-8',
+		noOverwrite: false
+		// tmpPath: aPlatPath + '.tmp'
+	};
+
+	aOptions = Object.assign(cOptionsDefaults, aOptions);
+
+	var do_write = function() {
+		return OS.File.writeAtomic(aPlatPath, aContents, aOptions); // doing unixMode:0o4777 here doesn't work, i have to `OS.File.setPermissions(path_toFile, {unixMode:0o4777})` after the file is made
+	};
+
+	do_write().then(
+		() => {
+			deferredMain_writeThenDir.resolve();
+		},
+		OSFileError => {
+			if (OSFileError.becauseNoSuchFile) { // this happens when directories dont exist to it
+				OS.File.makeDir(OS.Path.dirname(aPlatPath), {from:aDirFrom}).then(
+					() => {
+						do_write().then(
+							() => {
+								deferredMain_writeThenDir.resolve();
+							},
+							(OSFileError) => {
+								deferredMain_writeThenDir.reject(OSFileError);
+							}
+						);
+					},
+					(OSFileError) => {
+						deferredMain_writeThenDir.reject(OSFileError);
+					}
+				)
+				do_write(); // if it fails this time it will throw outloud
+			} else {
+				deferredMain_writeThenDir.reject(OSFileError);
+			}
+		}
+	);
+
+	return deferredMain_writeThenDir.promise;
+}
+
 // rev3 - https://gist.github.com/Noitidart/feeec1776c6ee4254a34
 function showFileInOSExplorer(aNsiFile, aDirPlatPath, aFileName) {
 	// can pass in aNsiFile
