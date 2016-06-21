@@ -724,7 +724,7 @@ var NewRecordingPage = React.createClass({
 								{ label:'Unlisted', onClick:this.youtubePrivacyUnlisted, active:(youtubeprivacy=='unlisted') }
 							]
 						},
-						{ label: 'Upload', color:'success', onClick:this.dialogYoutube },
+						{ label: 'Upload', color:'success', onClick:this.youtubeContinue },
 						{ label: 'Cancel', color:'danger', onClick:this.dialogCancel }
 					]));
 				break;
@@ -1007,11 +1007,16 @@ var BootstrapAlert = React.createClass({
 						break;
 					case 'CONVERTING_PROGRESS':
 							// CONVERTING_PROGRESS-gif_progress string here
-							var body_rest_pt1 = body_rest.substr( 0, body_rest.indexOf('_') );
-							var body_rest_pt2 = body_rest.substr( body_rest.indexOf('_')+1 );
-							console.log('body_rest_pt1:', body_rest_pt1, 'body_rest_pt2:', body_rest_pt2);
+							if (body_rest.indexOf('_') > -1) {
+								var body_rest_pt1 = body_rest.substr( 0, body_rest.indexOf('_') );
+								var body_rest_pt2 = body_rest.substr( body_rest.indexOf('_')+1 );
+								console.log('body_rest_pt1:', body_rest_pt1, 'body_rest_pt2:', body_rest_pt2);
 
-							cChildren.push( formatStringFromNameCore('newrecording_alertbody_convprog' + body_rest_pt1, 'app', [body_rest_pt2]) );
+								cChildren.push( formatStringFromNameCore('newrecording_alertbody_convprog' + body_rest_pt1, 'app', [body_rest_pt2]) );
+							} else {
+								cChildren.push( formatStringFromNameCore('newrecording_alertbody_convprog' + body_rest_pt1, 'app') );
+							}
+
 						break;
 					case 'HOLD_NEEDS_USER_AUTH':
 							// HOLD_NEEDS_USER_AUTH-serviceid
@@ -1144,17 +1149,17 @@ var ConfirmUI = React.createClass({
 				items.map(item => {
 					if (item.type && item.type == 'textarea') {
 						return React.createElement('div', { className:'form-group form-group-lg' },
-							React.createElement('label', { htmlFor:'dialog_input_'+item.id },
+							React.createElement('label', { htmlFor:item.id },
 								item.label
 							),
-							React.createElement('textarea', { className:'form-control', id:'dialog_input_'+item.id, placeholder:item.placeholder, maxLength:item.maxLength, defaultValue:item.defaultValue })
+							React.createElement('textarea', { className:'form-control', id:item.id, placeholder:item.placeholder, maxLength:item.maxLength, defaultValue:item.defaultValue })
 						)
 					} else if (item.type && item.type == 'input') {
 						return React.createElement('div', { className:'form-group form-group-lg' },
-							React.createElement('label', { htmlFor:'dialog_input_'+item.id },
+							React.createElement('label', { htmlFor:item.id },
 								item.label
 							),
-							React.createElement('input', { className:'form-control input-lg', id:'dialog_input_'+item.id, placeholder:item.placeholder, defaultValue:item.defaultValue })
+							React.createElement('input', { className:'form-control input-lg', id:item.id, placeholder:item.placeholder, defaultValue:item.defaultValue })
 						);
 					} else if (item.type && item.type == 'buttongroup') {
 						return React.createElement('div', { className:'btn-group btn-group-lg', role:'group' },
