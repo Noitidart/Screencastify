@@ -620,7 +620,6 @@ var NewRecordingPage = React.createClass({
 			videoConstraint.frameRate = { ideal:fps, max:fps }
 
 			// alert(JSON.stringify(videoConstraint));
-
 			navigator.mediaDevices.getUserMedia({ audio:mic, video:videoConstraint }).then(
 				function(stream) {
 					console.log('success');
@@ -969,6 +968,43 @@ var BootstrapAlert = React.createClass({
 							var error_log_url = 'data:text/html,' + '<pre style="white-space:nowrap">' + escape(rest_json.printed.join('<br>')) + '</pre>';
 							cChildren.push( React.createElement( 'a', { href:'javascript:void(0)', className:'alert-link', onClick:this.launchClick, 'data-launch':error_log_url }, formatStringFromNameCore('newrecording_alertlink_openerrorlog', 'app') ) )
 						break;
+					case 'GFYCAT_CONVERTING':
+							var rest_json = JSON.parse(body_rest);
+							cChildren.push( formatStringFromNameCore('newrecording_alertbody_gfycatconv', 'app', [rest_json.check_in]) );
+							cChildren.push( React.createElement('br') );
+							cChildren.push( React.createElement('br') );
+
+							var elapsed_time = toHHMMSS((Date.now() - rest_json.start_time)/1000);
+							cChildren.push( formatStringFromNameCore('newrecording_alertbody_elapsedtime', 'app', [elapsed_time.MM, elapsed_time.SS]) );
+
+							cChildren.push( React.createElement('br') );
+							cChildren.push( React.createElement('br') );
+
+							if (rest_json.link_webm) {
+								cChildren.push( formatStringFromNameCore('newrecording_alertbody_gfycatearlylink', 'app') );
+								cChildren.push( React.createElement('br') );
+							} else {
+								cChildren.push( formatStringFromNameCore('newrecording_alertbody_gfycatprelink', 'app') );
+								cChildren.push( React.createElement('br') );
+							}
+
+							if (rest_json.link_webm) {
+								// webm link
+								cChildren.push( formatStringFromNameCore('newrecording_alertlink_webm', 'app') );
+								cChildren.push( '-' );
+								cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.launchClick, 'data-launch':rest_json.link_webm }, formatStringFromNameCore('newrecording_alertlink_opentab', 'app') ) );
+								cChildren.push( '-' );
+								cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.copyClick, 'data-copy':rest_json.link_webm }, formatStringFromNameCore('newrecording_alertlink_copylink', 'app') ) );
+								cChildren.push( React.createElement('br') );
+							} else {
+								// site link
+								cChildren.push( formatStringFromNameCore('newrecording_alertlink_gfycat', 'app') );
+								cChildren.push( '-' );
+								cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.launchClick, 'data-launch':rest_json.link }, formatStringFromNameCore('newrecording_alertlink_opentab', 'app') ) );
+								cChildren.push( '-' );
+								cChildren.push( React.createElement( 'a', { href:'#', className:'alert-link', onClick:this.copyClick, 'data-copy':rest_json.link }, formatStringFromNameCore('newrecording_alertlink_copylink', 'app') ) );
+							}
+						break;
 					case 'CONVERTING_PROGRESS':
 							// CONVERTING_PROGRESS-gif_progress string here
 							var body_rest_pt1 = body_rest.substr( 0, body_rest.indexOf('_') );
@@ -1002,8 +1038,11 @@ var BootstrapAlert = React.createClass({
 							var links_json = JSON.parse(body_rest);
 
 							if (title == 'gfycat' || title == 'gfycatanon') {
+								cChildren.push( formatStringFromNameCore('newrecording_alertbody_gfycatwarn', 'app') );
+
 								cChildren.push( React.createElement('br') );
 								cChildren.push( React.createElement('br') );
+
 
 								var linkChildren = [];
 								for (var p in links_json) {
@@ -1682,6 +1721,23 @@ function doTestCallWorker_cbAndFullXfer() {
 	console.log('arg.bufA:', arg.bufA);
 }
 // start - common helper functions
+function toHHMMSS(aSeconds) {
+	// http://stackoverflow.com/a/6313008/1828637
+
+    var sec_num = parseInt(aSeconds, 10); // don't forget the second param
+    var HH   = Math.floor(sec_num / 3600);
+    var MM = Math.floor((sec_num - (HH * 3600)) / 60);
+    var SS = sec_num - (HH * 3600) - (MM * 60);
+
+    if (HH   < 10) {HH   = "0"+HH;}
+    if (MM < 10) {MM = "0"+MM;}
+    if (SS < 10) {SS = "0"+SS;}
+    return {
+		HH,
+		MM,
+		SS
+	};
+}
 function pushAlternatingRepeating(aTargetArr, aEntry) {
 	// pushes into an array aEntry, every alternating
 		// so if aEntry 0

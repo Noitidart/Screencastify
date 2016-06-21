@@ -59,7 +59,7 @@ function install() {}
 function uninstall(aData, aReason) {
 	if (aReason == ADDON_UNINSTALL) {
 		Cu.import('resource://gre/modules/osfile.jsm');
-		OS.File.removeDir(core.addon.storage);
+		OS.File.removeDir(OS.Path.join(OS.Constants.Path.profileDir, 'jetpack', core.addon.id), {ignorePermissions:true, ignoreAbsent:true});
 	}
 }
 

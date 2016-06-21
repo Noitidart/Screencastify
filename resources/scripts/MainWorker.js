@@ -507,7 +507,7 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 				case 'uploading': // 2sec
 						console.log('upload still in progress, will check in 10sec');
 						aReportProgress({
-							reason: 'Gfycat not yet done. Will check again in 10 seconds... Elapsed time:' + ((getCnt - 1) * 10) + 'sec'
+							reason: 'Gfycat not yet done. Will check again in 10 seconds... Elapsed time: ' + ((getCnt - 1) * 10) + 'sec Current task: ' + response.task
 						});
 						setTimeout(get, 10000);
 					break;
