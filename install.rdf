@@ -8,6 +8,7 @@
 		<em:version>1.0b</em:version>
 		<em:type>2</em:type>
 		<em:bootstrap>true</em:bootstrap>
+		<em:multiprocessCompatible>true</em:multiprocessCompatible>
 
 		<!-- Firefox -->
 		<em:targetApplication>
