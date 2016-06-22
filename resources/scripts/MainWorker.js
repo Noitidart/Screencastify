@@ -143,7 +143,7 @@ function buildOSFileErrorString(aMethod, aOSFileError) {
 		case 'writeAtomic':
 				var explain;
 				if (aOSFileError.becauseNoSuchFile) {
-					explain = formatStringFromName('osfileerror_writeatomic_nosuchfile')
+					explain = formatStringFromName('osfileerror_writeatomic_nosuchfile', 'main');
 				} else {
 					explain = formatStringFromName('osfileerror_unknownreason', 'main');
 				}
