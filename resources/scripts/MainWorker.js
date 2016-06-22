@@ -394,14 +394,14 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 		} else {
 			aActionFinalizer({
 				ok: false,
-				reason: 'gfycatanon server /upload/ failed. ' + xhrArg.reason
+				reason: formatStringFromName('unhandled_status', 'app', [status, request.responseURL, JSON.stringify(response)])
 			});
 		}
 	};
 
 	var transcode = function() {
 		aReportProgress({
-			reason: 'Uploading transcode instruction...'
+			reason: formatStringFromName('gfycat_start_conversions', 'app')
 		});
 		xhrAsync(
 			'https://upload.gfycat.com/transcodeRelease/' + YourOwnRandomString,
@@ -413,6 +413,7 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 		);
 	};
 
+	var start_time;
 	var checkTranscode = function(xhrArg) {
 		var { request, ok, reason } = xhrArg;
 		var { status, statusText, response } = request;
@@ -423,26 +424,27 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 			// }
 			switch (response.isOk) {
 				case 'true':
-						get();
+						start_time = Date.now();
+						requestStatus();
 					break;
 				default:
 					aActionFinalizer({
 						ok: false,
-						reason: 'gfycatanon server /transcodeRelease/ unknown response:' + JSON.stringify(response)
+						reason: formatStringFromName('unhandled_status', 'app', [status, request.responseURL, JSON.stringify(response)])
 					});
 			}
 		} else {
 			aActionFinalizer({
 				ok: false,
-				reason: 'gfycatanon server /transcodeRelease/ failed. ' + xhrArg.reason
+				reason: formatStringFromName('unhandled_status', 'app', [status, request.responseURL, JSON.stringify(response)])
 			});
 		}
 	};
 
-	var getCnt = 0;
-	var get = function() {
+	var gfyname;
+	var requestStatus = function(xhrArg) {
 		aReportProgress({
-			reason: 'Fetching Gfycat progress... ' + (getCnt++)
+			reason: formatStringFromName('fetching_progress', 'app')
 		});
 		xhrAsync(
 			'https://upload.gfycat.com/status/' + YourOwnRandomString,
@@ -450,138 +452,51 @@ function action_gfycatanon(rec, aActionFinalizer, aReportProgress) {
 				method: 'GET',
 				responseType: 'json'
 			},
-			checkGet
+			checkStatus
 		);
 	};
 
-	var gfyname;
-	var responses = []; // console.log('remove line on production')
-	var checkGet = function(xhrArg) {
-		var { request, ok, reason } = xhrArg;
-		var { status, statusText, response } = request;
-		console.log('checkGet:', { request, ok, reason, status, statusText, response });
-		if (xhrArg.ok) {
-			if (responses.indexOf(JSON.stringify(response)) == -1) { responses.push(JSON.stringify(response)) } // console.log('remove line on production')
-			// response = {
-			// 	task:"fetching",
-			// 	time:10
-			// }
-
-			// response = {
-			// 	task:"fetchingUpload"
-			// 	time:20
-			// }
-
-			// response = {
-			// 	task:"encoding"
-			// 	time:30
-			// }
-
-			// response = {
-			// 	task:"Resizing"
-			// 	time:10
-			// }
-
-			// response = {
-			// 	task:"exploding"
-			// 	time:10
-			// }
-
-			// response = {
-			// 	task:"uploading"
-			// 	time:2
-			// }
-
-			// response = {
-			// 	task:"complete"
-			// 	gfyname:ClosedDelectableEmperorpenguin
-			// }
-
-			// C:\Users\Mercurius\Pictures\gfycat upload flow.png
-			switch (response.task) { // in order as responses show
-				case 'fetching': // 1sec
-				case 'fetchingUpload': // 1sec
-				case 'Resizing': // 9sec
-				case 'exploding': // 6sec
-				case 'encoding': // 90sec
-				case 'uploading': // 2sec
-						console.log('upload still in progress, will check in 10sec');
-						aReportProgress({
-							reason: 'Gfycat not yet done. Will check again in 10 seconds... Elapsed time: ' + ((getCnt - 1) * 10) + 'sec Current task: ' + response.task
-						});
-						setTimeout(get, 10000);
-					break;
-				case 'complete':
-						console.log('/status/ responses:', responses);
-						gfyname = response.gfyname;
-						info();
+	var checkStatus = function(xhrArg) {
+		// xhrArg is either xhrArg or false/undefined as this is triggered by verifyOauthXhr
+		if (!xhrArg) {
+			// retry xhr
+			requestStatus();
+		} else {
+			var { request, ok, reason } = xhrArg;
+			var { status, statusText, response } = request;
+			switch (status) {
+				case 200:
+						if (response.task == 'complete') {
+							gfyname = response.gfyname;
+							aActionFinalizer({
+								ok: true,
+								reason_code: 'UPLOAD_SUCCESS_RESULTS-' + JSON.stringify({
+									link_gfycat: 'https://gfycat.com/' + gfyname,
+									link_webm: 'https://zippy.gfycat.com/' + gfyname + '.webm',
+									link_mp4:  'https://fat.gfycat.com/' + gfyname + '.mp4',
+									link_gif: 'https://fat.gfycat.com/' + gfyname + '.gif',
+									link_gifsmall: 'https://zippy.gfycat.com/' + gfyname + '.gif'
+								})
+							});
+						} else {
+							aReportProgress({
+								reason_code: 'GFYCAT_CONVERTING-' + JSON.stringify({
+									current_step: response.task,
+									link_webm: rec.mimetype == 'video/webm' ? 'https://zippy.gfycat.com/' + gfyname + '.webm' : undefined,
+									link: 'https://zippy.gfycat.com/' + gfyname,
+									check_in: 10,
+									start_time
+								})
+							});
+							setTimeout(requestStatus, 10000);
+						}
 					break;
 				default:
 					aActionFinalizer({
 						ok: false,
-						reason: 'gfycatanon server /status/ unknown response:' + JSON.stringify(response)
+						reason: formatStringFromName('unhandled_status', 'app', [status, request.responseURL, JSON.stringify(response)])
 					});
 			}
-		} else {
-			aActionFinalizer({
-				ok: false,
-				reason: 'gfycatanon server /status/ failed. ' + xhrArg.reason
-			});
-		}
-	};
-
-	var info = function() {
-		aReportProgress({
-			reason: 'Gfycat ready. Fetching links...'
-		});
-		xhrAsync(
-			'https://gfycat.com/cajax/get/' + gfyname,
-			{
-				method: 'GET',
-				responseType: 'json'
-			},
-			checkInfo
-		);
-	};
-
-	var checkInfo = function(xhrArg) {
-		var { request, ok, reason } = xhrArg;
-		var { status, statusText, response } = request;
-		console.log('checkInfo', { request, ok, reason, status, statusText, response });
-		if (xhrArg.ok) {
-			// response = {"gfyItem":{"gfyId":"nauticalshallowhorseshoecrab","gfyName":"NauticalShallowHorseshoecrab","gfyNumber":"348391832","userName":"anonymous","width":"1920","height":"1200","frameRate":"30","numFrames":"115","mp4Url":"https://fat.gfycat.com/NauticalShallowHorseshoecrab.mp4","webmUrl":"https://zippy.gfycat.com/NauticalShallowHorseshoecrab.webm","webpUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab.webp","mobileUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-mobile.mp4","mobilePosterUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-mobile.jpg","posterUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-poster.jpg","thumb360Url":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-360.mp4","thumb360PosterUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-thumb360.jpg","thumb100PosterUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-thumb100.jpg","max5mbGif":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-size_restricted.gif","max2mbGif":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab-small.gif","mjpgUrl":"https://thumbs.gfycat.com/NauticalShallowHorseshoecrab.mjpg","gifUrl":"https://zippy.gfycat.com/NauticalShallowHorseshoecrab.gif","gifSize":null,"mp4Size":"1543268","webmSize":"275415","createDate":"1465789154","views":1,"title":null,"extraLemmas":null,"md5":"f69894a066a91ef1fd6e02b96de2c949","tags":null,"nsfw":null,"sar":"1","url":null,"source":"1","dynamo":null,"subreddit":null,"redditId":null,"redditIdText":null,"likes":null,"dislikes":null,"published":null,"description":null,"copyrightClaimaint":null,"languageText":null}}
-			if (response.gfyItem) {
-				console.log('JSON.stringify(response):', JSON.stringify(response))
-				// var { userName, mp4Url, webmUrl, gifUrl } = response.gfyItem;
-				// gifUrl= gifUrl.replace('zippy.gfycat', 'giant.gfycat'); // otehrwise get access denied error
-
-				var log = {
-					i: response.gfyItem.gfyId,
-					x: undefined
-				};
-
-				aActionFinalizer({
-					ok: true,
-					reason_code: 'UPLOAD_SUCCESS_RESULTS-' + JSON.stringify({
-						link_gfycat: 'https://gfycat.com/' + gfyname,
-						// userName, // is "anonymous"
-						link_webm: response.gfyItem.webmUrl,
-						link_mp4:  response.gfyItem.mp4Url,
-						link_gif: response.gfyItem.gifUrl.replace('zippy.', 'giant.'),
-						link_gifsmall: response.gfyItem.gifUrl
-					})
-				});
-			} else {
-				aActionFinalizer({
-					ok: false,
-					reason: 'gfycatanon server /get/ unknown response:' + JSON.stringify(response)
-				});
-			}
-		} else {
-			aActionFinalizer({
-				ok: false,
-				reason: 'gfycatanon server /get/ failed. ' + xhrArg.reason
-			});
 		}
 	};
 
@@ -597,7 +512,7 @@ function action_quick(rec, aActionFinalizer, aReportProgress) {
 	var gsd = function() {
 		console.log('worker - action_quick - gsd');
 		aReportProgress({
-			reason: 'Determining default videos directory...'
+			reason: formatStringFromName('determining_default_vids', 'app')
 		});
 		getSystemDirectory('Videos').then(write);
 	};

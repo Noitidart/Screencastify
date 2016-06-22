@@ -1014,7 +1014,7 @@ var BootstrapAlert = React.createClass({
 
 								cChildren.push( formatStringFromNameCore('newrecording_alertbody_convprog' + body_rest_pt1, 'app', [body_rest_pt2]) );
 							} else {
-								cChildren.push( formatStringFromNameCore('newrecording_alertbody_convprog' + body_rest_pt1, 'app') );
+								cChildren.push( formatStringFromNameCore('newrecording_alertbody_convstart' + body_rest, 'app') );
 							}
 
 						break;

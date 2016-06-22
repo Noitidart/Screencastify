@@ -33,7 +33,7 @@ var core = {
 			// storage: OS.Path.join(OS.Constants.Path.profileDir, 'jetpack', core.addon.id, 'simple-storage')
 		},
 		pref_branch: 'extensions.Screencastify@jetpack.',
-		cache_key: '1.0' // set to version on release
+		cache_key: Math.random() // set to version on release
 	},
 	os: {
 		// // name: added by worker
