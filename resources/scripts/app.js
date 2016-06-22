@@ -650,7 +650,7 @@ var NewRecordingPage = React.createClass({
 				function(reason) {
 					revertPrefs();
 					console.error('rtc request failed, reason:', reason);
-					alert('You disallowed permission. ' + reason.name);
+					alert(formatStringFromNameCore('disallowed_permission', 'app', [reason.name]));
 					updateRecStateUninit();
 				}
 			)
