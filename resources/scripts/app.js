@@ -603,6 +603,12 @@ var NewRecordingPage = React.createClass({
 		updateRecStateUser();
 
 		// start async-proc12
+		var ensurePrefs = function() {
+			callInBootstrap('ensurePrefs', undefined, function(aRevertPrefs) {
+				requestRtc();
+			});
+		};
+
 		var requestRtc = function() {
 
 			var videoConstraint;
@@ -634,6 +640,7 @@ var NewRecordingPage = React.createClass({
 						gStream = null;
 						updateRecStateStop();
 						console.log('done dataavailable!');
+						revertPrefs();
 					}, false);
 
 					gRecorder.start();
@@ -641,6 +648,7 @@ var NewRecordingPage = React.createClass({
 					updateRecStateRecording();
 				},
 				function(reason) {
+					revertPrefs();
 					console.error('rtc request failed, reason:', reason);
 					alert('You disallowed permission. ' + reason.name);
 					updateRecStateUninit();
@@ -648,7 +656,11 @@ var NewRecordingPage = React.createClass({
 			)
 		};
 
-		requestRtc();
+		var revertPrefs = function() {
+			callInBootstrap('revertPrefs');
+		};
+
+		ensurePrefs();
 		// end async-proc12
 
 	},

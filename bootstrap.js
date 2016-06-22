@@ -348,9 +348,47 @@ function FHR() {
 
 }
 
-// start - functions called by bootstrap - that talk to worker
+// start - functions called by content
+var recordings_inprog_cnt = 0;
+const PREF_ALLOWED_DOMAINS = 'media.getusermedia.screensharing.allowed_domains';
+const PREF_SCREENSHARING_ENABLED = 'media.getusermedia.screensharing.enabled';
+var revert_prefs = {}; // key is pref to revert, value is pref to set it to
+function ensurePrefs() {
+	var allowed_domains = Services.prefs.getCharPref(PREF_ALLOWED_DOMAINS);
+	var screensharing_enabled = Services.prefs.getBoolPref(PREF_SCREENSHARING_ENABLED);
 
-// end - functions called by bootstrap - that talk to worker
+	if (screensharing_enabled != true) {
+		revert_prefs[PREF_SCREENSHARING_ENABLED] = {
+			value: screensharing_enabled,
+			type: 'Bool'
+		};
+		Services.prefs.setBoolPref(PREF_SCREENSHARING_ENABLED, true);
+	}
+	if (!allowed_domains.split(',').includes('screencastify')) {
+		revert_prefs[PREF_ALLOWED_DOMAINS] = {
+			value: allowed_domains,
+			type: 'Char'
+		};
+		Services.prefs.setCharPref(PREF_ALLOWED_DOMAINS, allowed_domains + ',screencastify');
+	}
+
+	recordings_inprog_cnt++;
+}
+
+function revertPrefs() {
+	recordings_inprog_cnt--;
+	if (!recordings_inprog_cnt) {
+
+		for (var p in revert_prefs) {
+			var pref = revert_prefs[p];
+			console.log(p, 'set' + pref.type + 'Pref', Services.prefs['set' + pref.type + 'Pref']);
+			Services.prefs['set' + pref.type + 'Pref'](p, pref.value);
+		}
+
+		revert_prefs = {};
+	} // else another recording is in progress
+}
+// end - functions called by content
 
 // start - functions called by framescript
 function fetchCore(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
