@@ -32,6 +32,7 @@
 		<!-- must provide default non-localized because It's used as a default on AMO. It's used as a default by the add-on manager, with the possibility of other locales overriding it. Failure to provide a non-localized name will lead to failed upload on AMO. -->
 		<em:name>Screencastify</em:name>
 		<em:creator>Noitidart</em:creator>
+		<em:description>Record your computer or device screen and annotate it with your voice and webcam.</em:description>
 		<em:contributor>Oxygen Team - Icon - https://www.iconfinder.com/icons/9414/media_record_icon</em:contributor>
 
 		<!-- start localizing - For each entry in default data MUST have equivalent in each localized block -->

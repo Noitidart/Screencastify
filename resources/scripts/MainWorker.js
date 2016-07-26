@@ -136,7 +136,7 @@ function buildPathForScreencast(path, rec, unsafe_filename) {
 }
 
 
-function buildOSFileErrorString(aMethod, aOSFileError) {
+function buildOSFileErrorString(aMethod, aOSFileError) { // rev1 - https://gist.github.com/Noitidart/a67dc6c83ae79aeffe5e3123d42d8f65
 	// aMethod:string - enum[writeAtomic]
 
 	switch (aMethod) {
@@ -872,9 +872,9 @@ function safedForPlatFS(aStr, aOptions={}) {
 	}
 }
 
-// rev1 - https://gist.github.com/Noitidart/c4ab4ca10ff5861c720b
+// rev2 - https://gist.github.com/Noitidart/c4ab4ca10ff5861c720b
 var jQLike = { // my stand alone jquery like functions
-	serialize: function(aSerializeObject) {
+	serialize: function(aSerializeObject, aEncoder=encodeURIComponent) {
 		// https://api.jquery.com/serialize/
 
 		// verified this by testing
@@ -883,7 +883,7 @@ var jQLike = { // my stand alone jquery like functions
 
 		var serializedStrArr = [];
 		for (var cSerializeKey in aSerializeObject) {
-			serializedStrArr.push(encodeURIComponent(cSerializeKey) + '=' + encodeURIComponent(aSerializeObject[cSerializeKey]));
+			serializedStrArr.push(aEncoder(cSerializeKey) + '=' + aEncoder(aSerializeObject[cSerializeKey]));
 		}
 		return serializedStrArr.join('&');
 	}
@@ -974,7 +974,7 @@ function validateOptionsObj(aOptions, aOptionsDefaults) {
 	}
 }
 
-// rev1 - https://gist.github.com/Noitidart/ec1e6b9a593ec7e3efed
+// rev2 - https://gist.github.com/Noitidart/ec1e6b9a593ec7e3efed
 function xhr(aUrlOrFileUri, aOptions={}) {
 	// console.error('in xhr!!! aUrlOrFileUri:', aUrlOrFileUri);
 
@@ -986,7 +986,7 @@ function xhr(aUrlOrFileUri, aOptions={}) {
 		method: 'GET', // string
 		data: null // make it whatever you want (formdata, null, etc), but follow the rules, like if aMethod is 'GET' then this must be null
 	};
-	validateOptionsObj(aOptions, aOptionsDefaults);
+	aOptions = Object.assign(aOptionsDefaults, aOptions);
 
 	var cRequest = new XMLHttpRequest();
 
