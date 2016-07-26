@@ -63,13 +63,16 @@ function uninstall(aData, aReason) {
 	}
 }
 
+var gBootstrap = this;
 function startup(aData, aReason) {
+	Services.scriptloader.loadSubScript(core.addon.path.scripts + 'comm/Comm.js', gBootstrap);
+    ({ callInMainworker, callInContentinframescript, callInFramescript } = CommHelper.bootstrap);
 
-	gWkComm = new workerComm(core.addon.path.scripts + 'MainWorker.js', ()=>{return core}, function(aArg, aComm) {
+	gWkComm = new Comm.server.worker(core.addon.path.scripts + 'MainWorker.js', ()=>{return core}, function(aArg, aComm) {
 
 		core = aArg;
 
-		gFsComm = new crossprocComm(core.addon.id);
+		gFsComm = new Comm.server.framescript(core.addon.id);
 
 		Services.mm.loadFrameScript(core.addon.path.scripts + 'MainFramescript.js?' + core.addon.cache_key, true);
 
@@ -93,7 +96,7 @@ function startup(aData, aReason) {
 
 	});
 
-	gWkComm.putMessage('dummyForInstantInstantiate');
+	callInMainworker('dummyForInstantInstantiate');
 
 }
 
@@ -107,9 +110,9 @@ function shutdown(aData, aReason) {
 
 	Services.mm.removeDelayedFrameScript(core.addon.path.scripts + 'MainFramescript.js?' + core.addon.cache_key);
 
-	crossprocComm_unregAll();
+	Comm.server.unregAll('framescript');
+    Comm.server.unregAll('worker');
 
-	workerComm_unregAll();
 }
 
 var windowListener = {
@@ -193,7 +196,7 @@ function cuiClick(e) {
 	// if (gRecord) {
 	// 	globalRecordStop();
 	// } else {
-	// 	gWkComm.putMessage('globalRecordNew');
+	// 	callInMainworker('globalRecordNew');
 	// }
 }
 
@@ -396,7 +399,7 @@ function fetchCore(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
 }
 function fetchCoreAndHydrant(head, aReportProgress, aComm, aMessageManager, aBrowser) {
 	var deferredMain_fetchCoreAndHydrant = new Deferred();
-	callInWorker('fetchHydrant', head, function(hydrant, aComm) {
+	callInMainworker('fetchHydrant', head, function(hydrant, aComm) {
 		deferredMain_fetchCoreAndHydrant.resolve({
 			hydrant,
 			core
@@ -500,43 +503,6 @@ function launchOrFocusOrReuseTab(aArg, aReportProgress, aComm) {
 
 }
 // end - functions called by worker
-
-// testing commapi
-function testCallBootstrapFromContent(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
-	// called by framescript
-	// aReportProgress is undefined as there is no callback in content for this test
-	console.error('in bootstrap, aArg:', aArg);
-}
-function testCallBootstrapFromContent_transfer(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
-	// called by framescript
-	// aReportProgress is undefined as there is no callback in content for this test
-	console.error('in bootstrap, aArg:', aArg);
-}
-function testCallBootstrapFromContent_justcb(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
-	// called by framescript
-	console.error('in bootstrap, aArg:', aArg);
-	return 1;
-}
-function testCallBootstrapFromContent_justcb_thattransfers(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
-	// called by framescript
-	console.error('in bootstrap, aArg:', aArg);
-	var send = {
-		num: 1,
-		buf: new ArrayBuffer(20),
-		__XFER: ['buf']
-	};
-	return send;
-}
-function testCallBootstrapFromContent_cbAndFullXfer(aArg, aReportProgress, aComm, aMessageManager, aBrowser) {
-	console.error('in bootstrap, aArg:', aArg);
-	var argP = {start:1, bufP:new ArrayBuffer(10), __XFER:['bufP']};
-	aReportProgress(argP);
-	console.log('argP.bufP:', argP.bufP);
-	var argF = {end:1, bufF:new ArrayBuffer(10), __XFER:['bufF']};
-	var deferred = new Deferred();
-	deferred.resolve(argF);
-	return deferred.promise;
-}
 
 //start - common helper functions
 // rev3 - https://gist.github.com/Noitidart/feeec1776c6ee4254a34
@@ -721,467 +687,4 @@ function genericCatch(aPromiseName, aPromiseToReject, aCaught) {
 		aPromiseToReject.reject(rejObj);
 	}
 }
-// start - CommAPI
-// common to all of these apis
-	// whenever you use the message method, the method MUST not be a number, as if it is, then it is assumed it is a callback
-	// if you want to do a transfer of data from a callback, if transferring is supported by the api, then you must arg must be an object and you must include the key __XFER
-	// whenever you do aReprotProgress - it must be an object. The key __PROGRESS will get added to it, so in your final callback destination, you will know not to continue
-var gBootstrap = this;
-
-// start - CommAPI for bootstrap-framescript - bootstrap side - cross-file-link55565665464644
-// message method - transcribeMessage - it is meant to indicate nothing can be transferred, just copied/transcribed to the other process
-// first arg to transcribeMessage is a message manager, this is different from the other comm api's
-var gCrossprocComms = [];
-function crossprocComm_unregAll() {
-	var l = gCrossprocComms.length;
-	for (var i=0; i<l; i++) {
-		gCrossprocComms[i].unregister();
-	}
-}
-function crossprocComm(aChannelId) {
-	// when a new framescript creates a crossprocComm on framscript side, it requests whatever it needs on init, so i dont offer a onBeforeInit or onAfterInit on bootstrap side
-
-	var scope = gBootstrap;
-	gCrossprocComms.push(this);
-
-	this.unregister = function() {
-		Services.mm.removeMessageListener(aChannelId, this.listener);
-
-		var l = gCrossprocComms.length;
-		for (var i=0; i<l; i++) {
-			if (gCrossprocComms[i] == this) {
-				gCrossprocComms.splice(i, 1);
-				break;
-			}
-		}
-
-		// kill framescripts
-		Services.mm.broadcastAsyncMessage(aChannelId, {
-			method: 'UNINIT_FRAMESCRIPT'
-		});
-	};
-
-	this.listener = {
-		receiveMessage: function(e) {
-			var messageManager = e.target.messageManager;
-			if (!messageManager) {
-				console.error('bootstrap crossprocComm - ignoring this received message as no messageManager for the one i am getting message from, e.target:', e.target, 'messageManager:', messageManager);
-				return;
-			}
-			var browser = e.target;
-			var payload = e.data;
-			console.log('bootstrap crossprocComm - incoming, payload:', payload); // , 'messageManager:', messageManager, 'browser:', browser, 'e:', e);
-			// console.log('this in receiveMessage bootstrap:', this);
-
-			if (payload.method) {
-				if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') }  // dev line remove on prod
-				var rez_bs_call__for_fs = scope[payload.method](payload.arg, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid, messageManager}) : undefined, this, messageManager, browser);  // only on bootstrap side, they get extra 2 args
-				// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
-				if (payload.cbid) {
-					if (rez_bs_call__for_fs && rez_bs_call__for_fs.constructor.name == 'Promise') {
-						rez_bs_call__for_fs.then(
-							function(aVal) {
-								console.log('Fullfilled - rez_bs_call__for_fs - ', aVal);
-								this.transcribeMessage(messageManager, payload.cbid, aVal);
-							}.bind(this),
-							genericReject.bind(null, 'rez_bs_call__for_fs', 0)
-						).catch(genericCatch.bind(null, 'rez_bs_call__for_fs', 0));
-					} else {
-						console.log('bootstrap crossprocComm - calling transcribeMessage for callbck with args:', payload.cbid, rez_bs_call__for_fs);
-						this.transcribeMessage(messageManager, payload.cbid, rez_bs_call__for_fs);
-					}
-				}
-			} else if (!payload.method && payload.cbid) {
-				// its a cbid
-				this.callbackReceptacle[payload.cbid](payload.arg, messageManager, browser, this);
-				if (payload.arg && !payload.arg.__PROGRESS) {
-					delete this.callbackReceptacle[payload.cbid];
-				}
-			} else {
-				console.error('bootstrap crossprocComm - invalid combination - method:', payload.method, 'cbid:', payload.cbid, 'payload:', payload);
-			}
-		}.bind(this)
-	};
-	this.nextcbid = 1; //next callback id
-	this.transcribeMessage = function(aMessageManager, aMethod, aArg, aCallback) {
-		// console.log('bootstrap sending message to framescript', aMethod, aArg);
-		// aMethod is a string - the method to call in framescript
-		// aCallback is a function - optional - it will be triggered when aMethod is done calling
-		console.log('bootstrap crossprocComm - in transcribeMessage:', aMessageManager, aMethod, aArg, aCallback)
-		var cbid = null;
-		if (typeof(aMethod) == 'number') {
-			// this is a response to a callack waiting in framescript
-			cbid = aMethod;
-			aMethod = null;
-		} else {
-			if (aCallback) {
-				cbid = this.nextcbid++;
-				this.callbackReceptacle[cbid] = aCallback;
-			}
-		}
-
-		// return;
-		if (!aMessageManager) {
-			console.error('bootstrap crossprocComm - how on earth, im in transcribeMessage but no aMessageManager? arguments:', aMessageManager, aMethod, aArg, aCallback);
-		}
-		aMessageManager.sendAsyncMessage(aChannelId, {
-			method: aMethod,
-			arg: aArg,
-			cbid
-		});
-	};
-	this.callbackReceptacle = {};
-	this.reportProgress = function(aProgressArg) {
-		// aProgressArg MUST be an object, devuser can set __PROGRESS:1 but doesnt have to, because i'll set it here if its not there
-		// this gets passed as thrid argument to each method that is called in the scope
-		// devuser MUST NEVER bind reportProgress. as it is bound to {THIS:this, cbid:cbid}
-		// devuser must set up the aCallback they pass to initial putMessage to handle being called with an object with key __PROGRESS:1 so they know its not the final reply to callback, but an intermediate progress update
-		aProgressArg.__PROGRESS = 1;
-		this.THIS.transcribeMessage(this.messageManager, this.cbid, aProgressArg);
-	};
-
-	Services.mm.addMessageListener(aChannelId, this.listener);
-}
-// start - CommAPI for bootstrap-framescript - bootstrap side - cross-file-link55565665464644
-// start - CommAPI for bootstrap-content - bootstrap side - cross-file-link0048958576532536411
-// message method - putMessage - content is in-process-content-windows, transferring works
-// there is a framescript version of this, because framescript cant get aPort1 and aPort2 so it has to create its own
-function contentComm(aContentWindow, aPort1, aPort2, onHandshakeComplete) {
-	// onHandshakeComplete is triggered when handshake is complete
-	// when a new contentWindow creates a contentComm on contentWindow side, it requests whatever it needs on init, so i dont offer a onBeforeInit. I do offer a onHandshakeComplete which is similar to onAfterInit, but not exactly the same
-	// no unregister for this really, as no listeners setup, to unregister you just need to GC everything, so just break all references to it
-
-	var handshakeComplete = false; // indicates this.putMessage will now work i think. it might work even before though as the messages might be saved till a listener is setup? i dont know i should ask
-	var scope = gBootstrap;
-
-	this.listener = function(e) {
-		var payload = e.data;
-		console.log('bootstrap contentComm - incoming, payload:', payload); //, 'e:', e);
-
-		if (payload.method) {
-			if (payload.method == 'contentComm_handshake_finalized') {
-				handshakeComplete = false;
-				if (onHandshakeComplete) {
-					onHandshakeComplete(this);
-				}
-				return;
-			}
-			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') } // dev line remove on prod
-			var rez_bs_call__for_win = scope[payload.method](payload.arg, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined, this);
-			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
-			console.log('rez_bs_call__for_win:', rez_bs_call__for_win);
-			if (payload.cbid) {
-				if (rez_bs_call__for_win && rez_bs_call__for_win.constructor.name == 'Promise') {
-					rez_bs_call__for_win.then(
-						function(aVal) {
-							console.log('Fullfilled - rez_bs_call__for_win - ', aVal);
-							this.putMessage(payload.cbid, aVal);
-						}.bind(this),
-						genericReject.bind(null, 'rez_bs_call__for_win', 0)
-					).catch(genericCatch.bind(null, 'rez_bs_call__for_win', 0));
-				} else {
-					console.log('calling putMessage for callback with rez_bs_call__for_win:', rez_bs_call__for_win, 'this:', this);
-					this.putMessage(payload.cbid, rez_bs_call__for_win);
-				}
-			}
-		} else if (!payload.method && payload.cbid) {
-			// its a cbid
-			this.callbackReceptacle[payload.cbid](payload.arg, this);
-			if (payload.arg && !payload.arg.__PROGRESS) {
-				delete this.callbackReceptacle[payload.cbid];
-			}
-		} else {
-			throw new Error('invalid combination');
-		}
-	}.bind(this);
-
-	this.nextcbid = 1; //next callback id
-
-	this.putMessage = function(aMethod, aArg, aCallback) {
-
-		// aMethod is a string - the method to call in framescript
-		// aCallback is a function - optional - it will be triggered when aMethod is done calling
-		var aTransfers;
-		if (aArg && aArg.__XFER) {
-			// if want to transfer stuff aArg MUST be an object, with a key __XFER holding the keys that should be transferred
-			// __XFER is either array or object. if array it is strings of the keys that should be transferred. if object, the keys should be names of the keys to transfer and values can be anything
-			aTransfers = [];
-			var __XFER = aArg.__XFER;
-			if (Array.isArray(__XFER)) {
-				for (var p of __XFER) {
-					aTransfers.push(aArg[p]);
-				}
-			} else {
-				// assume its an object
-				for (var p in __XFER) {
-					aTransfers.push(aArg[p]);
-				}
-			}
-		}
-
-		var cbid = null;
-		if (typeof(aMethod) == 'number') {
-			// this is a response to a callack waiting in framescript
-			cbid = aMethod;
-			aMethod = null;
-		} else {
-			if (aCallback) {
-				cbid = this.nextcbid++;
-				this.callbackReceptacle[cbid] = aCallback;
-			}
-		}
-
-		// return;
-		aPort1.postMessage({
-			method: aMethod,
-			arg: aArg,
-			cbid
-		}, aTransfers);
-	}
-
-	aPort1.onmessage = this.listener;
-	this.callbackReceptacle = {};
-	this.reportProgress = function(aProgressArg) {
-		// aProgressArg MUST be an object, devuser can set __PROGRESS:1 but doesnt have to, because i'll set it here if its not there
-		// this gets passed as thrid argument to each method that is called in the scope
-		// devuser MUST NEVER bind reportProgress. as it is bound to {THIS:this, cbid:cbid}
-		// devuser must set up the aCallback they pass to initial putMessage to handle being called with an object with key __PROGRESS:1 so they know its not the final reply to callback, but an intermediate progress update
-		aProgressArg.__PROGRESS = 1;
-		this.THIS.putMessage(this.cbid, aProgressArg);
-	};
-
-	aContentWindow.postMessage({
-		topic: 'contentComm_handshake',
-		port2: aPort2
-	}, '*', [aPort2]);
-
-}
-// end - CommAPI for bootstrap-content - bootstrap side - cross-file-link0048958576532536411
-// start - CommAPI for bootstrap-worker - bootstrap side - cross-file-link5323131347
-// message method - putMessage
-// on unregister, workers are terminated
-var gWorkerComms = [];
-function workerComm_unregAll() {
-	var l = gWorkerComms.length;
-	for (var i=0; i<l; i++) {
-		gWorkerComms[i].unregister();
-	}
-}
-function workerComm(aWorkerPath, onBeforeInit, onAfterInit, aWebWorker) {
-	// limitations:
-		// the first call is guranteed
-		// devuser should never putMessage from worker with method name "triggerOnAfterInit" - this is reserved for programtic use
-		// devuser should never putMessage from bootstrap with method name "init" - progmaticcaly this is automatically done in this.createWorker
-
-	// worker is lazy loaded, it is not created until the first call. if you want instant instantiation, call this.createWorker() with no args
-	// creates a ChromeWorker, unless aWebWorker is true
-
-	// if onBeforeInit is set
-		// if worker has `init` function
-			// it is called by bootstrap, (progrmatically, i determine this by basing the first call to the worker)
-	// if onBeforeInit is NOT set
-		// if worker has `init` function
-			// it is called by the worker before the first call to any method in the worker
-	// onAfterInit is not called if `init` function does NOT exist in the worker. it is called by worker doing putMessage to bootstrap
-
-	// onBeforeInit - args: this - it is a function, return a single var to send to init function in worker. can return set arg to object with key __XFER if you want to transfer. it is run to build the data the worker should be inited with.
-	// onAfterInit - args: aArg, this - a callback that happens after init is complete. aArg is return value of init from in worker. the first call to worker will happen after onAfterInit runs in bootstrap
-	// these init features are offered because most times, workers need some data before starting off. and sometimes data is sent back to bootstrap like from init of MainWorker's
-	// no featuere for prep term, as the prep term should be done in the `self.onclose = function(event) { ... }` of the worker
-	gWorkerComms.push(this);
-
-	var worker;
-	var scope = gBootstrap;
-	this.nextcbid = 1; //next callback id
-	this.callbackReceptacle = {};
-	this.reportProgress = function(aProgressArg) {
-		// aProgressArg MUST be an object, devuser can set __PROGRESS:1 but doesnt have to, because i'll set it here if its not there
-		// this gets passed as thrid argument to each method that is called in the scope
-		// devuser MUST NEVER bind reportProgress. as it is bound to {THIS:this, cbid:cbid}
-		// devuser must set up the aCallback they pass to initial putMessage to handle being called with an object with key __PROGRESS:1 so they know its not the final reply to callback, but an intermediate progress update
-		aProgressArg.__PROGRESS = 1;
-		this.THIS.putMessage(this.cbid, aProgressArg);
-	};
-
-	this.createWorker = function(onAfterCreate) {
-		// only triggered by putMessage when `var worker` has not yet been set
-		worker = aWebWorker ? new Worker(aWorkerPath) : new ChromeWorker(aWorkerPath);
-		worker.addEventListener('message', this.listener);
-
-		if (onAfterInit) {
-			var oldOnAfterInit = onAfterInit;
-			onAfterInit = function(aArg, aComm) {
-				oldOnAfterInit(aArg, aComm);
-				if (onAfterCreate) {
-					onAfterCreate(); // link39399999
-				}
-			}
-		}
-
-		var initArg;
-		if (onBeforeInit) {
-			initArg = onBeforeInit(this);
-			if (onAfterInit) {
-				this.putMessage('init', initArg); // i dont put onAfterCreate as a callback here, because i want to gurantee that the call of onAfterCreate happens after onAfterInit is triggered link39399999
-			} else {
-				this.putMessage('init', initArg, onAfterCreate);
-			}
-		} else {
-			// else, worker is responsible for calling init. worker will know because it keeps track in listener, what is the first putMessage, if it is not "init" then it will run init
-			if (onAfterCreate) {
-				onAfterCreate(); // as putMessage i the only one who calls this.createWorker(), onAfterCreate is the origianl putMessage intended by the devuser
-			}
-		}
-	};
-	this.putMessage = function(aMethod, aArg, aCallback) {
-		// aMethod is a string - the method to call in framescript
-		// aCallback is a function - optional - it will be triggered when aMethod is done calling
-
-		if (!worker) {
-			this.createWorker(this.putMessage.bind(this, aMethod, aArg, aCallback));
-		} else {
-			var aTransfers;
-			if (aArg && aArg.__XFER) {
-				// if want to transfer stuff aArg MUST be an object, with a key __XFER holding the keys that should be transferred
-				// __XFER is either array or object. if array it is strings of the keys that should be transferred. if object, the keys should be names of the keys to transfer and values can be anything
-				aTransfers = [];
-				var __XFER = aArg.__XFER;
-				if (Array.isArray(__XFER)) {
-					for (var p of __XFER) {
-						aTransfers.push(aArg[p]);
-					}
-				} else {
-					// assume its an object
-					for (var p in __XFER) {
-						aTransfers.push(aArg[p]);
-					}
-				}
-			}
-			var cbid = null;
-			if (typeof(aMethod) == 'number') {
-				// this is a response to a callack waiting in framescript
-				cbid = aMethod;
-				aMethod = null;
-			} else {
-				if (aCallback) {
-					cbid = this.nextcbid++;
-					this.callbackReceptacle[cbid] = aCallback;
-				}
-			}
-
-			worker.postMessage({
-				method: aMethod,
-				arg: aArg,
-				cbid
-			}, aTransfers);
-		}
-	};
-	this.unregister = function() {
-
-		var l = gWorkerComms.length;
-		for (var i=0; i<l; i++) {
-			if (gWorkerComms[i] == this) {
-				gWorkerComms.splice(i, 1);
-				break;
-			}
-		}
-
-		if (worker) { // because maybe it was setup, but never instantiated
-			worker.terminate();
-		}
-
-	};
-	this.listener = function(e) {
-		var payload = e.data;
-		console.log('bootstrap workerComm - incoming, payload:', payload); //, 'e:', e);
-
-		if (payload.method) {
-			if (payload.method == 'triggerOnAfterInit') {
-				if (onAfterInit) {
-					onAfterInit(payload.arg, this);
-				}
-				return;
-			}
-			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in scope'); throw new Error('method of "' + payload.method + '" not in scope') } // dev line remove on prod
-			var rez_bs_call__for_worker = scope[payload.method](payload.arg, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined, this);
-			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
-			console.log('rez_bs_call__for_worker:', rez_bs_call__for_worker);
-			if (payload.cbid) {
-				if (rez_bs_call__for_worker && rez_bs_call__for_worker.constructor.name == 'Promise') {
-					rez_bs_call__for_worker.then(
-						function(aVal) {
-							console.log('Fullfilled - rez_bs_call__for_worker - ', aVal);
-							this.putMessage(payload.cbid, aVal);
-						}.bind(this),
-						genericReject.bind(null, 'rez_bs_call__for_worker', 0)
-					).catch(genericCatch.bind(null, 'rez_bs_call__for_worker', 0));
-				} else {
-					console.log('calling putMessage for callback with rez_bs_call__for_worker:', rez_bs_call__for_worker, 'this:', this);
-					this.putMessage(payload.cbid, rez_bs_call__for_worker);
-				}
-			}
-		} else if (!payload.method && payload.cbid) {
-			// its a cbid
-			this.callbackReceptacle[payload.cbid](payload.arg, this);
-			if (payload.arg && !payload.arg.__PROGRESS) {
-				delete this.callbackReceptacle[payload.cbid];
-			}
-		} else {
-			console.error('bootstrap workerComm - invalid combination');
-			throw new Error('bootstrap workerComm - invalid combination');
-		}
-	}.bind(this);
-}
-// end - CommAPI for bootstrap-worker - bootstrap side - cross-file-link5323131347
-// CommAPI Abstraction - bootstrap side
-function callInFramescript(aMessageManager, aMethod, aArg, aCallback) {
-	// only bootstrap calls this
-	gFsComm.transcribeMessage(aMessageManager, aMethod, aArg, aCallback);
-}
-function callInContentOfFramescript(aMessageManager, aMethod, aArg, aCallback) {
-	gFsComm.transcribeMessage(aMessageManager, 'callInContent', {
-		m: aMethod,
-		a: aArg
-	}, aCallback);
-}
-function callInContent(aWinComm, aMethod, aArg, aCallback) {
-	// only bootstrap call
-	aWinComm.postMessage(aMethod, aArg, aCallback);
-}
-function callInWorker(aMethod, aArg, aCallback, aExtra1, aExtra2) {
-	if (aMethod.constructor.name == 'Object') {
-		// framescript or content (NOT contentOfFramescript) called this
-		if (arguments.length == 3) {
-			// called by content - 3 args - scope[payload.method](payload.arg, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
-			var aReportProgress = aArg;
-			var aComm = aCallback;
-		} else if (arguments.length == 5) {
-			// called by framescript - 5 args - scope[payload.method](payload.arg, messageManager, browser, this, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined);
-			var aReportProgress = aArg;
-			var aComm = aCallback;
-			var aMessageManager = aExtra1;
-			var aBrowser = aExtra2;
-		}
-		else { console.error('arguments.length is ' + arguments.length + ' i didnt handle who calls it with this much'); throw new Error('arguments.length is ' + arguments.length + ' i didnt handle who calls it with this much'); }
-		var {m:aMethod, a:aArg} = aMethod;
-
-		if (aReportProgress) { // if (wait) { // if it has aReportProgress then the scope has a callback waiting for reply
-			var deferred = new Deferred();
-			gWkComm.putMessage(aMethod, aArg, function(rez) {
-				if (rez && rez.__PROGRESS) {
-					aReportProgress(rez);
-				} else {
-					deferred.resolve(rez);
-				}
-			});
-			return deferred.promise;
-		} else {
-			gWkComm.putMessage(aMethod, aArg);
-		}
-	} else {
-		gWkComm.putMessage(aMethod, aArg, aCallback);
-	}
-}
-// end - CommAPI
-
 // end - common helper functions

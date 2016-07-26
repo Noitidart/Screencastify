@@ -1,5 +1,6 @@
 var core;
 var gFsComm;
+var callInFramescript, callInMainworker, callInBootstrap;
 var gRecorder;
 var gPage;
 
@@ -45,6 +46,12 @@ function getPage() {
 }
 getPage();
 
+function preinit() {
+	console.log('in iprenit');
+	({ callInFramescript, callInMainworker, callInBootstrap } = CommHelper.contentinframescript);
+	gFsComm = new Comm.client.content(init);
+}
+
 function init() {
 	callInBootstrap(hydrant ? 'fetchCoreAndHydrant' : 'fetchCore', gPage.name, function(aArg) {
 		console.error('aArg in app.js:', aArg);
@@ -88,6 +95,8 @@ function uninit() {
 		console.error('revoked url of:', gURL);
 		gURL = null;
 	}
+
+	Comm.client.unregAll('content');
 }
 
 // start - functions called by framescript
@@ -369,7 +378,7 @@ function shouldUpdateHydrant() {
 	}
 
 	if (hydrant_updated) {
-		callInWorker('updateHydrant', {
+		callInMainworker('updateHydrant', {
 			head: gPage.name,
 			hydrant
 		})
@@ -379,6 +388,7 @@ function shouldUpdateHydrant() {
 }
 
 // REACT COMPONENTS - PRESENTATIONAL
+var gContent = this;
 var App = React.createClass({
 	render() {
 		var { page } = this.props;
@@ -747,7 +757,7 @@ var NewRecordingPage = React.createClass({
 	dismiss_dispatcher: function(alertid) {
 		var { removeAlert } = this.props; // from mapDispatchToProps
 		removeAlert(alertid);
-		callInWorker('cancelActionFlow', alertid); // NOTE: alertid is the actionid in my use case in Screencastify link5757
+		callInMainworker('cancelActionFlow', alertid); // NOTE: alertid is the actionid in my use case in Screencastify link5757
 	},
 	// dialog onClicks
 	twitterFormatGif: function() {
@@ -820,7 +830,7 @@ function processAction(aArg) {
 		aArg.__XFER = ['arrbuf'];
 		aArg.actionid = Date.now(); // is action_time
 
-		callInWorker('processAction', aArg, function(status, aComm) {
+		callInMainworker('processAction', aArg, function(status, aComm) {
 			console.log('back in window after calling processAction, resulting status:', status);
 			if (status.__PROGRESS) {
 				var updateAlertDict = {};
@@ -907,7 +917,7 @@ var BootstrapAlert = React.createClass({
 		this.props.dismiss_dispatcher(this.props.alertid);
 	},
 	openAuthTabClick: function() {
-		callInWorker('openAuthTab', this.props.title);
+		callInMainworker('openAuthTab', this.props.title);
 	},
 	copyClick: function(e) {
 		var data_copy = e.target.getAttribute('data-copy');
@@ -1636,107 +1646,6 @@ var NewRecordingContainer = ReactRedux.connect(
 
 // end - react-redux
 
-// testing commapi
-// no callback (so obviously no progress), no transfer
-function doTestCallBootstrap() {
-	callInBootstrap('testCallBootstrapFromContent', 'hi');
-}
-function doTestCallFramescript() {
-	callInFramescript('testCallFramescriptFromContent', 'hi');
-}
-function doTestCallWorker() {
-	callInWorker('testCallWorkerFromContent', 'hi');
-}
-// no callback (so obviously no progress), just transfer
-function doTestCallBootstrap_transfer() {
-	var arg = {str:'hi',buf:new ArrayBuffer(10),__XFER:['buf']};
-	callInBootstrap('testCallBootstrapFromContent_transfer', arg);
-	console.log('arg.buf:', arg.buf);
-}
-function doTestCallFramescript_transfer() {
-	var arg = {str:'hi',buf:new ArrayBuffer(10),__XFER:['buf']};
-	callInFramescript('testCallFramescriptFromContent_transfer', arg);
-	console.log('arg.buf:', arg.buf);
-}
-function doTestCallWorker_transfer() {
-	var arg = {str:'hi',buf:new ArrayBuffer(10),__XFER:['buf']};
-	callInWorker('testCallWorkerFromContent_transfer', arg);
-	console.log('arg.buf:', arg.buf);
-}
-
-// with callback (no progress), no transfer
-function doTestCallBootstrap_justcb() {
-	var arg = 'hi';
-	callInBootstrap('testCallBootstrapFromContent_justcb', arg, function(aArg, aComm) {
-		console.log('back in content, aArg:', aArg, 'arguments:', arguments);
-	});
-}
-function doTestCallFramescript_justcb() {
-	var arg = 'hi';
-	callInFramescript('testCallFramescriptFromContent_justcb', arg, function(aArg, aComm) {
-		console.log('back in content, aArg:', aArg, 'arguments:', arguments);
-	});
-}
-function doTestCallWorker_justcb() {
-	var arg = 'hi';
-	callInWorker('testCallWorkerFromContent_justcb', arg, function(aArg, aComm) {
-		console.log('back in content, aArg:', aArg, 'arguments:', arguments);
-	});
-}
-
-// with callback (no progress), no transfer, but callback transfers
-function doTestCallBootstrap_justcb_thattransfers() {
-	var arg = 'hi';
-	callInBootstrap('testCallBootstrapFromContent_justcb_thattransfers', arg, function(aArg, aComm) {
-		console.log('back in content, aArg:', aArg, 'arguments:', arguments);
-	});
-}
-function doTestCallFramescript_justcb_thattransfers() {
-	var arg = 'hi';
-	callInFramescript('testCallFramescriptFromContent_justcb_thattransfers', arg, function(aArg, aComm) {
-		console.log('back in content, aArg:', aArg, 'arguments:', arguments);
-	});
-}
-function doTestCallWorker_justcb_thattransfers() {
-	var arg = 'hi';
-	callInWorker('testCallWorkerFromContent_justcb_thattransfers', arg, function(aArg, aComm) {
-		console.log('back in content, aArg:', aArg, 'arguments:', arguments);
-	});
-}
-// with callback with progress, transfer to, progress transfers back, and final transfers back to callback
-function doTestCallFramescript_cbAndFullXfer() {
-	var arg = {str:'hi',bufA:new ArrayBuffer(20),__XFER:['bufA']};
-	callInFramescript('testCallFramescriptFromContent_cbAndFullXfer', arg, function(aArg, aComm) {
-		if (aArg.__PROGRESS) {
-			console.log('PROGRESS back in content, aArg:', aArg, 'arguments:', arguments);
-		} else {
-			console.log('FINALIZED back in content, aArg:', aArg, 'arguments:', arguments);
-		}
-	});
-	console.log('arg.bufA:', arg.bufA);
-}
-function doTestCallBootstrap_cbAndFullXfer() {
-	var arg = {str:'hi',bufA:new ArrayBuffer(10),__XFER:['bufA']};
-	callInBootstrap('testCallBootstrapFromContent_cbAndFullXfer', arg, function(aArg, aComm) {
-		if (aArg.__PROGRESS) {
-			console.log('PROGRESS back in content, aArg:', aArg, 'arguments:', arguments);
-		} else {
-			console.log('FINALIZED back in content, aArg:', aArg, 'arguments:', arguments);
-		}
-	});
-	console.log('arg.bufA:', arg.bufA);
-}
-function doTestCallWorker_cbAndFullXfer() {
-	var arg = {str:'hi',bufA:new ArrayBuffer(30),__XFER:['bufA']};
-	callInWorker('testCallWorkerFromContent_cbAndFullXfer', arg, function(aArg, aComm) {
-		if (aArg.__PROGRESS) {
-			console.log('PROGRESS back in content, aArg:', aArg, 'arguments:', arguments);
-		} else {
-			console.log('FINALIZED back in content, aArg:', aArg, 'arguments:', arguments);
-		}
-	});
-	console.log('arg.bufA:', arg.bufA);
-}
 // start - common helper functions
 function toHHMMSS(aSeconds) {
 	// http://stackoverflow.com/a/6313008/1828637
@@ -1782,155 +1691,20 @@ function formatStringFromNameCore(aLocalizableStr, aLoalizedKeyInCoreAddonL10n, 
 
     return cLocalizedStr;
 }
-// start - CommAPI
-var gContent = this;
-
-// start - CommAPI for bootstrap-content - loadSubScript-sandbox side - cross-file-link0048958576532536411
-function contentComm(onHandshakeComplete) {
-	// onHandshakeComplete is triggerd when handshake completed and this.putMessage becomes usable
-	var scope = gContent;
-	var handshakeComplete = false; // indicates this.putMessage will now work
-	var port;
-	this.nextcbid = 1; // next callback id // its important that min be 1, because lots of places i do a test if (cbid). and if min is 0, then if (cbid) will report a false negative, because indeed it has a cbid. basically i didnt do if ('cbid' in payload).
-	this.callbackReceptacle = {};
-	this.reportProgress = function(aProgressArg) {
-		// aProgressArg MUST be an object, devuser can set __PROGRESS:1 but doesnt have to, because i'll set it here if its not there
-		// this gets passed as thrid argument to each method that is called in the scope
-		// devuser MUST NEVER bind reportProgress. as it is bound to {THIS:this, cbid:cbid}
-		// devuser must set up the aCallback they pass to initial putMessage to handle being called with an object with key __PROGRESS:1 so they know its not the final reply to callback, but an intermediate progress update
-		aProgressArg.__PROGRESS = 1;
-		this.THIS.putMessage(this.cbid, aProgressArg);
-	};
-
-	this.listener = function(e) {
-		var payload = e.data;
-		console.log('content contentComm - incoming, payload:', payload); // , 'e:', e, 'this:', this);
-
-		if (payload.method) {
-			if (!(payload.method in scope)) { console.error('method of "' + payload.method + '" not in WINDOW'); throw new Error('method of "' + payload.method + '" not in WINDOW') } // dev line remove on prod
-			var rez_win_call__for_fs = scope[payload.method](payload.arg, payload.cbid ? this.reportProgress.bind({THIS:this, cbid:payload.cbid}) : undefined, this);
-			// in the return/resolve value of this method call in scope, (the rez_blah_call_for_blah = ) MUST NEVER return/resolve an object with __PROGRESS:1 in it
-			console.log('content contentComm - rez_win_call__for_fs:', rez_win_call__for_fs);
-			if (payload.cbid) {
-				if (rez_win_call__for_fs && rez_win_call__for_fs.constructor.name == 'Promise') {
-					rez_win_call__for_fs.then(
-						function(aVal) {
-							console.log('Fullfilled - rez_win_call__for_fs - ', aVal);
-							this.putMessage(payload.cbid, aVal);
-						}.bind(this),
-						genericReject.bind(null, 'rez_win_call__for_fs', 0)
-					).catch(genericCatch.bind(null, 'rez_win_call__for_fs', 0));
-				} else {
-					this.putMessage(payload.cbid, rez_win_call__for_fs);
-				}
-			}
-		} else if (!payload.method && payload.cbid) {
-			// its a cbid
-			this.callbackReceptacle[payload.cbid](payload.arg, this);
-			if (payload.arg && !payload.arg.__PROGRESS) {
-				delete this.callbackReceptacle[payload.cbid];
-			}
-		} else {
-			console.error('contentComm - invalid combination');
-			throw new Error('contentComm - invalid combination');
-		}
-	}.bind(this);
-	this.putMessage = function(aMethod, aArg, aCallback) {
-		// aMethod is a string - the method to call in framescript
-		// aCallback is a function - optional - it will be triggered when aMethod is done calling
-
-		// determine aTransfers
-		var aTransfers;
-		var xferScope;
-		var xferIterable;
-		if (aArg) {
-			if (aArg.__XFER) {
-				xferIterable = aArg.__XFER;
-				xferScope = aArg;
-			} else if (aArg.a && aArg.m && aArg.a.__XFER) { // special handle for callIn***
-				xferIterable = aArg.a.__XFER;
-				xferScope = aArg.a;
-			}
-		}
-		if (xferScope) {
-			// if want to transfer stuff aArg MUST be an object, with a key __XFER holding the keys that should be transferred
-			// __XFER is either array or object. if array it is strings of the keys that should be transferred. if object, the keys should be names of the keys to transfer and values can be anything
-			aTransfers = [];
-			if (Array.isArray(xferIterable)) {
-				for (var p of xferIterable) {
-					aTransfers.push(xferScope[p]);
-				}
-			} else {
-				// assume its an object
-				for (var p in xferIterable) {
-					aTransfers.push(xferScope[p]);
-				}
-			}
-		}
-
-		var cbid = null;
-		if (typeof(aMethod) == 'number') {
-			// this is a response to a callack waiting in framescript
-			cbid = aMethod;
-			aMethod = null;
-		} else {
-			if (aCallback) {
-				cbid = this.nextcbid++;
-				this.callbackReceptacle[cbid] = aCallback;
-			}
-		}
-
-		// return;
-		port.postMessage({
-			method: aMethod,
-			arg: aArg,
-			cbid
-		}, aTransfers);
-	};
-
-	var winMsgListener = function(e) {
-		var data = e.data;
-		console.log('content contentComm - incoming window message, data:', uneval(data)); //, 'source:', e.source, 'ports:', e.ports);
-		switch (data.topic) {
-			case 'contentComm_handshake':
-
-					window.removeEventListener('message', winMsgListener, false);
-					port = data.port2;
-					port.onmessage = this.listener;
-					this.putMessage('contentComm_handshake_finalized');
-					handshakeComplete = true;
-					if (onHandshakeComplete) {
-						onHandshakeComplete(true);
-					}
-
-				break;
-			default:
-				console.error('content contentComm - unknown topic, data:', data);
-		}
-	}.bind(this);
-	window.addEventListener('message', winMsgListener, false);
-
-}
-// end - CommAPI for bootstrap-content - content side - cross-file-link0048958576532536411
-// CommAPI Abstraction - content side
-function callInFramescript(aMethod, aArg, aCallback) {
-	gFsComm.putMessage(aMethod, aArg, aCallback);
-}
-function callInBootstrap(aMethod, aArg, aCallback) {
-	gFsComm.putMessage('callInBootstrap', {
-		m: aMethod,
-		a: aArg
-	},
-	aCallback);
-}
-function callInWorker(aMethod, aArg, aCallback) {
-	gFsComm.putMessage('callInWorker', {
-		m: aMethod,
-		a: aArg
-	},
-	aCallback);
-}
-// end - CommAPI
 // end - common helper functions
 
-gFsComm = new contentComm(init); // the onHandshakeComplete of initPage will trigger AFTER DOMContentLoaded because MainFramescript only does aContentWindow.putMessage for its new contentComm after DOMContentLoaded see cross-file-link884757009. so i didnt test, but i by doing this here i am registering the contentWindow.addEventListener('message', ...) before it posts. :TODO: i should test what happens if i send message to content first, and then setup listener after, i should see if the content gets that message (liek if it was waiting for a message listener to be setup, would be wonky if its like this but cool) // i have to do this after `var gContent = window` otherwise gContent is undefined
+if (document.readyState == 'complete') {
+	console.log('doc already loaded so do preinit now!');
+	preinit();
+} else {
+	window.addEventListener('DOMContentLoaded', function(e) {
+		if (e.target.defaultView.frameElement) {
+			// ignore frame
+			console.log('DOMContentLoaded a frame so ignore');
+			return;
+		} else {
+			console.error('ok doing preinit now!');
+		}
+		preinit();
+	}, false);
+}
